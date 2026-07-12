@@ -1,0 +1,61 @@
+# --- Python ---
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# Test / lint / typecheck
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.hypothesis/
+
+# --- uv ---
+# uv.lock is committed for reproducible installs
+
+# --- Server secrets and local config ---
+config.yaml
+.env
+.env.*
+!.env.example
+
+# --- Local runtime data (paths from config.yaml) ---
+data/
+uploads/
+models_cache/
+logs/
+
+# --- Vellum plugin (dev copy under repo) ---
+plugin/node_modules/
+plugin/data/
+plugin/install-meta.json
+plugin/.disabled
+
+# Stale compiled surfaces win over .ts in the Vellum loader
+plugin/hooks/*.js
+plugin/tools/*.js
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Editor ---
+.idea/
+*.swp
+*~
+.vscode/
+
+# --- Logs ---
+*.log

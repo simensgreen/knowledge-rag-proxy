@@ -1,0 +1,14 @@
+[Unit]
+Description=knowledge-rag-proxy REST server
+After=network.target
+
+[Service]
+Type=simple
+# TODO Phase 3: set WorkingDirectory, EnvironmentFile, and ExecStart for your host
+WorkingDirectory=/path/to/knowledge-rag-proxy
+EnvironmentFile=/path/to/knowledge-rag-proxy/.env
+ExecStart=/path/to/knowledge-rag-proxy/.venv/bin/uvicorn server.app:app --host 0.0.0.0 --port 8000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

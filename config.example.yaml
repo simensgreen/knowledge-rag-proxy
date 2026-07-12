@@ -1,0 +1,30 @@
+# Copy to config.yaml and edit paths for your host.
+# See AGENTS.md for field reference.
+
+paths:
+  documents_dir: "/path/to/documents"
+  data_dir: "/path/to/data"
+  uploads_dir: "/path/to/uploads"
+
+embeddings:
+  model: "BAAI/bge-m3"
+  cache_dir: "/path/to/models_cache"
+
+reranking:
+  enabled: true
+  model: "Xenova/ms-marco-MiniLM-L-6-v2"
+  top_k_multiplier: 3
+
+search:
+  default_results: 5
+  max_results: 20
+  collection_name: "knowledge_base"
+
+server:
+  transport: "stdio"
+
+category_mappings: {}
+keyword_routes: {}
+
+watcher:
+  debounce_seconds: 10
