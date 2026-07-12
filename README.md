@@ -11,12 +11,23 @@ Self-hosted REST proxy over [knowledge-rag](https://pypi.org/project/knowledge-r
 ```bash
 uv venv .venv
 uv pip install -e ".[dev]"
-cp config.example.yaml config.yaml
-# edit config.yaml — set your document paths
+cp .env.example .env
+# edit .env — KRP_BEARER, KRP_DOCUMENTS_DIR, optional paths
 
-export KB_PROXY_API_KEY="your-secret-token"
+export KRP_BEARER="your-secret-token"
+export KRP_DOCUMENTS_DIR="$(pwd)/documents"
 uv run uvicorn server.app:app --reload --port 8000
 ```
+
+You set only `KRP_DOCUMENTS_DIR` — the folder to index, watch, and serve.
+
+### Why we quietly redirect `KNOWLEDGE_RAG_DIR` to your temp dir
+
+You may notice the embedded `knowledge-rag` library wants a `KNOWLEDGE_RAG_DIR` and, the very moment you `import` its config module, helpfully mkdir's `documents/`, `data/`, and `models_cache/` wherever that points — a global singleton with filesystem side effects at import time. Merely reading the config *writes to your disk*. Chef's kiss.
+
+Since we override every real path afterwards anyway, `bootstrap_library_base()` sets `KNOWLEDGE_RAG_DIR` to `{temp}/knowledge-rag-proxy/base` **before** the import fires — unless you set `KNOWLEDGE_RAG_DIR` yourself. `{temp}` is `KRP_TMP_DIR` when set, otherwise the cross-platform system temp (`tempfile.gettempdir()`). Same base temp dir is used for in-progress uploads. Your actual documents folder stays pristine, with no surprise `documents/` nesting. Persistent state we *do* care about (ChromaDB, metadata, model cache) goes to a proper per-user app-data dir, not temp.
+
+Moral: please don't ship global mutable config that touches the filesystem on import. Someone downstream has to write a paragraph like this one.
 
 ### Plugin
 
@@ -43,4 +54,4 @@ Then configure `baseUrl`, store the API token in the Vellum credential vault, an
 
 ## Status
 
-Phase 0 scaffold: stub endpoints and plugin surfaces. Implementation tracked in [AGENTS.md](AGENTS.md) roadmap.
+Phase 1 server: MCP routes + upload/download via `.env` config. Plugin Phase 2 pending. See [AGENTS.md](AGENTS.md) roadmap.

@@ -31,7 +31,7 @@ config.yaml
 .env.*
 !.env.example
 
-# --- Local runtime data (paths from config.yaml) ---
+# --- Local runtime data (paths from .env) ---
 data/
 uploads/
 models_cache/

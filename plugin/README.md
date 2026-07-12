@@ -23,7 +23,7 @@ assistant plugins install https://github.com/simensgreen/knowledge-rag-proxy/tre
 Run the Python server on a host reachable from Vellum (any `http://` or `https://` URL). Set the same Bearer token on the server:
 
 ```bash
-export KB_PROXY_API_KEY="your-secret-token"
+export KRP_BEARER="your-secret-token"
 ```
 
 See root `AGENTS.md` for server setup.

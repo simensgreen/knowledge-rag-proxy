@@ -1,98 +1,88 @@
-"""FastAPI application — stub endpoints. See AGENTS.md for API schema."""
+"""FastAPI application entrypoint."""
 
 from __future__ import annotations
 
 import os
-from typing import Annotated, Any
+import traceback
+from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException, Security, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from dotenv import load_dotenv
 
-bearer_scheme = HTTPBearer(auto_error=False)
+# knowledge-rag creates {KNOWLEDGE_RAG_DIR}/{documents,data,models_cache} as a
+# side effect of importing mcp_server.config, so KNOWLEDGE_RAG_DIR must be steered
+# to a safe internal location before importing anything that pulls in mcp_server
+# (server.deps, server.routes, server.watcher). The indexed folder is
+# KRP_DOCUMENTS_DIR, applied to the config singleton afterwards.
+load_dotenv()
 
-app = FastAPI(title="knowledge-rag-proxy", version="0.1.0")
+from server.env_config import apply_env_config, bootstrap_library_base  # noqa: E402
 
+bootstrap_library_base()
+apply_env_config()
 
-def verify_bearer_token(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Security(bearer_scheme)],
-) -> None:
-    """Validate Authorization: Bearer against KB_PROXY_API_KEY."""
-    expected = os.environ.get("KB_PROXY_API_KEY")
-    if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="KB_PROXY_API_KEY is not configured on the server",
-        )
-    if credentials is None or credentials.scheme.lower() != "bearer":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Bearer token",
-        )
-    if credentials.credentials != expected:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Bearer token",
-        )
+from fastapi import Depends, FastAPI, Request  # noqa: E402
+from fastapi.exceptions import RequestValidationError  # noqa: E402
+
+from server.auth import verify_bearer_token  # noqa: E402
+from server.deps import get_orchestrator_dep  # noqa: E402
+from server.errors import ServiceError  # noqa: E402
+from server.responses import error_response  # noqa: E402
+from server.routes import documents, knowledge  # noqa: E402
+from server.startup import index_documents_on_startup  # noqa: E402
+from server.watcher import start_watchers, stop_watchers  # noqa: E402
 
 
-Authenticated = Annotated[None, Depends(verify_bearer_token)]
+def _docs_enabled() -> bool:
+    return os.environ.get("KRP_DOCS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def not_implemented() -> None:
-    raise HTTPException(
-        status_code=status.HTTP_501_NOT_IMPLEMENTED,
-        detail="Endpoint not implemented yet — see Phase 1 in AGENTS.md",
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    orchestrator = get_orchestrator_dep()
+    index_documents_on_startup(orchestrator)
+    start_watchers()
+    yield
+    stop_watchers()
+
+
+_docs_enabled = _docs_enabled()
+
+app = FastAPI(
+    title="knowledge-rag-proxy",
+    version="0.1.0",
+    lifespan=lifespan,
+    dependencies=[Depends(verify_bearer_token)],
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
+
+app.include_router(knowledge.router)
+app.include_router(documents.router)
+
+
+@app.exception_handler(ServiceError)
+async def service_error_handler(_request: Request, exc: ServiceError):
+    return error_response(exc.status_code, exc.message, exc.hint)
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(_request: Request, exc: RequestValidationError):
+    return error_response(
+        422,
+        "Invalid request body",
+        hint="Check required fields and JSON schema for this endpoint.",
     )
 
 
-@app.get("/health")
-def health() -> dict[str, Any]:
-    """Liveness check. Unauthenticated for load balancers (Phase 1 may gate this)."""
-    return {
-        "ok": True,
-        "version": "0.1.0",
-        "documents": 0,
-    }
-
-
-@app.post("/search")
-def search(_body: dict[str, Any], _auth: Authenticated) -> dict[str, Any]:
-    """Hybrid search. Request: {query, max_results?, category?}."""
-    not_implemented()
-    return {"hits": []}
-
-
-@app.post("/upload")
-def upload(_auth: Authenticated) -> dict[str, Any]:
-    """Multipart upload. Form: file, optional category."""
-    not_implemented()
-    return {"status": "ok", "filepath": ""}
-
-
-@app.get("/list")
-def list_documents(_auth: Authenticated) -> dict[str, Any]:
-    """List indexed documents. Query: category?, limit?."""
-    not_implemented()
-    return {"documents": [], "total": 0}
-
-
-@app.get("/stats")
-def stats(_auth: Authenticated) -> dict[str, Any]:
-    """Index statistics."""
-    not_implemented()
-    return {
-        "total_documents": 0,
-        "total_chunks": 0,
-        "categories": [],
-        "bm25_ready": False,
-    }
-
-
-@app.post("/reindex")
-def reindex(_body: dict[str, Any], _auth: Authenticated) -> dict[str, Any]:
-    """Trigger incremental or force reindex. Request: {force?: bool}."""
-    not_implemented()
-    return {"indexed": 0, "chunks_added": 0, "skipped": 0}
+@app.exception_handler(Exception)
+async def unhandled_error_handler(_request: Request, exc: Exception):
+    traceback.print_exc()
+    return error_response(
+        500,
+        "Internal server error",
+        hint="Check server logs for details.",
+    )
 
 
 def main() -> None:

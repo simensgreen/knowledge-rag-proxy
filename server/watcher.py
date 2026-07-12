@@ -1,18 +1,41 @@
-"""Optional document watcher — stub. Paths come from config.yaml."""
+"""Document watcher lifecycle."""
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
+from mcp_server.server import DocumentWatcher, get_orchestrator
+from watchdog.observers import Observer
 
-def start_watchers(_config: dict[str, Any]) -> None:
-    """Start watchdog observers for configured directories.
+from server.env_config import get_allowed_roots, get_watcher_debounce_seconds
 
-    TODO Phase 1: wire knowledge-rag DocumentWatcher with debounce from config.
-    """
-    pass
+_observers: list[Observer] = []
+
+
+def start_watchers() -> None:
+    """Start DocumentWatcher on the documents directory."""
+    if os.environ.get("KRP_WATCH_DISABLED", "").strip() == "1":
+        return
+
+    debounce_seconds = get_watcher_debounce_seconds()
+    watcher = DocumentWatcher(get_orchestrator, debounce_seconds=debounce_seconds)
+
+    for root in get_allowed_roots():
+        root.mkdir(parents=True, exist_ok=True)
+        observer = Observer()
+        observer.schedule(watcher, str(root), recursive=True)
+        observer.daemon = True
+        observer.start()
+        _observers.append(observer)
 
 
 def stop_watchers() -> None:
     """Stop all active observers."""
-    pass
+    for observer in _observers:
+        try:
+            observer.stop()
+            observer.join(timeout=5)
+        except Exception:
+            pass
+    _observers.clear()

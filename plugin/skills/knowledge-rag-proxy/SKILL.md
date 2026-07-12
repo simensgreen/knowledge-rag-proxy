@@ -22,7 +22,7 @@ Connects Vellum to a self-hosted `knowledge-rag-proxy` server over HTTP(S).
 
 ## Prerequisites
 
-1. Server running with `KB_PROXY_API_KEY` set (see root `AGENTS.md`).
+1. Server running with `KRP_BEARER` set (see root `AGENTS.md`).
 2. Plugin `config.json`: `baseUrl` + `apiTokenCredentialRef` (vault alias only).
 3. API token stored via `credential_store` secure prompt — never paste secrets in chat.
 4. Credential `allowedDomains` must include the host from `baseUrl`.
@@ -55,4 +55,4 @@ If tools report server unavailable:
 
 - Verify `baseUrl` in `config.json` is reachable from Vellum.
 - Verify the credential vault entry matches `apiTokenCredentialRef` and `allowedDomains`.
-- Verify the server has the same token in `KB_PROXY_API_KEY`.
+- Verify the server has the same token in `KRP_BEARER`.
