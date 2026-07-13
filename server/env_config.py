@@ -9,26 +9,24 @@ from pathlib import Path
 
 from platformdirs import user_data_dir
 
-_APP_NAME = "grimoire"
-_DEFAULT_SEARCH_RESULTS = 5
-_DEFAULT_SEARCH_MAX_RESULTS = 20
+APP_NAME = "grimoire"
 
 
-def _truthy(value: str | None) -> bool:
+def truthy(value: str | None) -> bool:
     if value is None:
         return False
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _optional_int(env_name: str) -> int | None:
+def optional_int(env_name: str) -> int | None:
     raw = os.environ.get(env_name)
     if raw is None or not raw.strip():
         return None
     return int(raw.strip())
 
 
-def _app_data_dir() -> Path:
-    return Path(user_data_dir(_APP_NAME))
+def app_data_dir() -> Path:
+    return Path(user_data_dir(APP_NAME))
 
 
 def get_temp_dir() -> Path:
@@ -55,70 +53,84 @@ def get_surreal_url() -> str:
     raw = os.environ.get("GRIM_SURREAL_URL")
     if raw and raw.strip():
         return raw.strip()
-    return f"surrealkv://{_app_data_dir() / 'surreal'}"
+    return f"surrealkv://{app_data_dir() / 'surreal'}"
+
+
+def get_surreal_namespace() -> str:
+    raw = os.environ.get("GRIM_SURREAL_NAMESPACE")
+    if raw and raw.strip():
+        return raw.strip()
+    return APP_NAME
+
+
+def get_surreal_database() -> str:
+    raw = os.environ.get("GRIM_SURREAL_DATABASE")
+    if raw and raw.strip():
+        return raw.strip()
+    return "main"
+
+
+def get_fulltext_languages_raw() -> str | None:
+    return os.environ.get("GRIM_FULLTEXT_LANGUAGES")
 
 
 def get_allowed_roots() -> list[Path]:
     return [get_documents_dir()]
 
 
-def is_watcher_disabled() -> bool:
-    return os.environ.get("GRIM_WATCH_DISABLED", "").strip() == "1"
-
-
 def get_watcher_debounce_seconds() -> float:
-    debounce = _optional_int("GRIM_WATCH_DEBOUNCE")
+    debounce = optional_int("GRIM_WATCH_DEBOUNCE")
     if debounce is not None and debounce > 0:
         return float(debounce)
     return 10.0
 
 
-def get_search_default_results() -> int:
-    configured = _optional_int("GRIM_SEARCH_DEFAULT_RESULTS")
-    if configured is not None and configured >= 1:
-        return configured
-    return _DEFAULT_SEARCH_RESULTS
-
-
-def get_search_max_results() -> int:
-    configured = _optional_int("GRIM_SEARCH_MAX_RESULTS")
-    if configured is not None and configured >= 1:
-        return configured
-    return _DEFAULT_SEARCH_MAX_RESULTS
-
-
 @dataclass(frozen=True)
 class ProviderConfig:
-    provider: str
     base_url: str
     token: str
     model: str | None = None
 
 
-def _read_provider(prefix: str) -> ProviderConfig | None:
-    provider = os.environ.get(f"GRIM_{prefix}_PROVIDER", "").strip()
+def read_provider(prefix: str) -> ProviderConfig | None:
     base_url = os.environ.get(f"GRIM_{prefix}_BASE_URL", "").strip()
     token = os.environ.get(f"GRIM_{prefix}_TOKEN", "").strip()
-    if not provider and not base_url and not token:
+    if not base_url and not token:
         return None
     model = os.environ.get(f"GRIM_{prefix}_MODEL", "").strip() or None
-    return ProviderConfig(provider=provider, base_url=base_url, token=token, model=model)
+    return ProviderConfig(base_url=base_url, token=token, model=model)
 
 
 def get_embedding_provider_config() -> ProviderConfig | None:
-    return _read_provider("EMBEDDING")
+    return read_provider("EMBEDDING")
+
+
+def require_embedding_provider_config() -> ProviderConfig:
+    config = get_embedding_provider_config()
+    if config is None or not config.base_url or not config.token:
+        raise RuntimeError(
+            "GRIM_EMBEDDING_BASE_URL and GRIM_EMBEDDING_TOKEN are required. "
+            "Set both in .env for embedding at startup."
+        )
+    return config
 
 
 def get_ocr_provider_config() -> ProviderConfig | None:
-    return _read_provider("OCR")
+    return read_provider("OCR")
 
 
-def get_embedding_dimensions() -> int | None:
-    return _optional_int("GRIM_EMBEDDING_DIMENSIONS")
+def get_embedding_dimensions() -> int:
+    dimensions = optional_int("GRIM_EMBEDDING_DIMENSIONS")
+    if dimensions is None or dimensions < 1:
+        raise RuntimeError(
+            "GRIM_EMBEDDING_DIMENSIONS is not set. Set it to the embedding vector size "
+            "(for example 1536) in .env."
+        )
+    return dimensions
 
 
 def is_docs_enabled() -> bool:
-    return _truthy(os.environ.get("GRIM_DOCS"))
+    return truthy(os.environ.get("GRIM_DOCS"))
 
 
 def get_log_level() -> str:

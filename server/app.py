@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import logging
+import asyncio
 import traceback
 from contextlib import asynccontextmanager
 
@@ -10,31 +10,79 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from server.env_config import get_log_level
+from server.logging_config import configure_logging
 
-logging.basicConfig(
-    level=get_log_level(),
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+configure_logging()
 
 from fastapi import Depends, FastAPI, Request  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 
 from server.auth import verify_bearer_token  # noqa: E402
-from server.env_config import is_docs_enabled  # noqa: E402
+from server.deps import (  # noqa: E402
+    build_embedder,
+    build_parser,
+    embedding_model_name,
+)
+from server.engine.doc_store import DocStore  # noqa: E402
+from server.engine.store import ensure_store_schema  # noqa: E402
+from server.env_config import is_docs_enabled, require_embedding_provider_config  # noqa: E402
 from server.errors import ServiceError  # noqa: E402
 from server.responses import error_response  # noqa: E402
 from server.routes import api  # noqa: E402
-from server.startup import probe_documents_dir  # noqa: E402
+from server.services.index_queue import IndexQueue  # noqa: E402
+from server.services.indexing import run_index_worker  # noqa: E402
+from server.services.reconcile import reconcile_index  # noqa: E402
+from server.startup import (  # noqa: E402
+    probe_documents_dir,
+    probe_embedding_provider,
+    verify_stored_embedding_dimensions,
+)
 from server.watcher import start_watchers, stop_watchers  # noqa: E402
 
 
 @asynccontextmanager
-async def lifespan(_app: FastAPI):
+async def lifespan(app: FastAPI):
+    require_embedding_provider_config()
+    app.state.parser = build_parser()
+    app.state.embedder = build_embedder()
+    surreal = ensure_store_schema()
+    app.state.store = surreal
+    app.state.doc_store = DocStore(surreal)
+    app.state.queue = IndexQueue()
+    embedding_model = embedding_model_name(app.state.embedder)
+
     probe_documents_dir()
-    start_watchers()
+    probe_embedding_provider(app.state.embedder)
+    verify_stored_embedding_dimensions(app.state.doc_store)
+
+    app.state.worker = asyncio.create_task(
+        run_index_worker(
+            app.state.queue,
+            store=app.state.doc_store,
+            parser=app.state.parser,
+            embedder=app.state.embedder,
+            embedding_model=embedding_model,
+        )
+    )
+    start_watchers(app.state.queue, loop=asyncio.get_running_loop())
+    app.state.reconcile_task = asyncio.create_task(
+        reconcile_index(app.state.queue, app.state.doc_store, app.state.parser)
+    )
+
     yield
+
+    for task_name in ("worker", "reconcile_task"):
+        task = getattr(app.state, task_name, None)
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     stop_watchers()
+    store = app.state.store
+    if store is not None:
+        store.close()
 
 
 app = FastAPI(
@@ -47,7 +95,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if is_docs_enabled() else None,
 )
 
-app.include_router(api.router)
+app.include_router(api.router, prefix="/api")
 
 
 @app.exception_handler(ServiceError)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, BinaryIO
+from typing import Any
 
 from server.engine.protocols import Parser
 from server.errors import ServiceError
@@ -37,7 +37,3 @@ def convert_upload(parser: Parser, filename: str | None, data: bytes) -> dict[st
             "metadata": result.metadata,
         }
     )
-
-
-def read_upload_stream(source: BinaryIO) -> bytes:
-    return source.read()

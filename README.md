@@ -19,8 +19,6 @@ export GRIM_DOCUMENTS_DIR="$(pwd)/documents"
 uv run uvicorn server.app:app --reload --port 8000
 ```
 
-Phase 1 uses stub engine/parser responses. Phase 2 wires SurrealDB, markitdown, and HTTP embedding/OCR providers.
-
 ### Plugin
 
 ```bash
@@ -43,6 +41,6 @@ Plugin tools `grim_*` map 1:1 to these routes (`/health` is init probe only).
 
 ## Layout
 
-- `server/` — FastAPI app + `server/engine/` protocols/stubs
+- `server/` — FastAPI app + `server/engine/` (ingest, SurrealDB, markitdown)
 - `plugin/` — Vellum plugin
 - `tests/` — pytest

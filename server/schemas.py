@@ -5,10 +5,5 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class RemoveRequest(BaseModel):
-    path: str
-
-
-class MoveRequest(BaseModel):
-    source_path: str
-    dest_path: str
+class FileContentReplaceRequest(BaseModel):
+    markdown: str

@@ -1,31 +1,21 @@
-"""File read/list/status business logic."""
+"""File list/status business logic."""
 
 from __future__ import annotations
 
 import re
+from pathlib import PurePosixPath
 from typing import Any
 
-from server.engine.protocols import Engine
+from server.engine.doc_store import DocStore
+from server.engine.protocols import Parser
 from server.errors import ServiceError
-from server.paths import relativize
 from server.responses import success
-
-
-def get_file(engine: Engine, path: str) -> dict[str, Any]:
-    if not path or not path.strip():
-        raise ServiceError(400, "Path required", hint="Provide the path of an indexed file.")
-    document = engine.get_file(path.strip())
-    if document is None:
-        raise ServiceError(
-            404,
-            f"File not found: {path}",
-            hint="Call GET /list_files to see indexed paths, or POST /upload to add the file.",
-        )
-    return success({"file": relativize(document)})
+from server.services.index_queue import IndexQueue
+from server.services.serializers import doc_to_list_item
 
 
 def list_files(
-    engine: Engine,
+    store: DocStore,
     path_regex: str | None = None,
     limit: int = 50,
     offset: int = 0,
@@ -42,19 +32,41 @@ def list_files(
                 hint=f"Fix the regex pattern: {error}",
             ) from error
 
-    page, total = engine.list_files(normalized_regex or None, limit, offset)
+    documents, total = store.list_documents(normalized_regex or None, limit, offset)
+    files = [doc_to_list_item(document) for document in documents]
     return success(
         {
             "path": normalized_regex,
             "total": total,
-            "count": len(page),
+            "count": len(files),
             "offset": offset,
             "limit": limit,
-            "files": relativize(page),
+            "files": files,
         }
     )
 
 
-def status(engine: Engine) -> dict[str, Any]:
-    stats = engine.stats()
-    return success(stats)
+def status(store: DocStore, queue: IndexQueue, parser: Parser) -> dict[str, Any]:
+    stats = store.count_stats()
+    indexing = queue.snapshot().to_indexing_or_none()
+
+    # Docs with chunk_count=None are either supported files that failed a
+    # transient step (retryable) or unsupported formats recorded as-is; the
+    # split is derived from the parser, never persisted, to avoid a stale field.
+    failed = 0
+    unsupported = 0
+    for path in store.failed_doc_paths():
+        if parser.is_supported(PurePosixPath(path).suffix):
+            failed += 1
+        else:
+            unsupported += 1
+
+    return success(
+        {
+            "documents": stats["documents"],
+            "chunks": stats["chunks"],
+            "failed": failed,
+            "unsupported": unsupported,
+            "indexing": indexing,
+        }
+    )

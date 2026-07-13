@@ -1,4 +1,4 @@
-"""File upload, download, move, and remove."""
+"""File upload, download, move, and remove (filesystem only)."""
 
 from __future__ import annotations
 
@@ -13,19 +13,51 @@ from typing import Any, BinaryIO
 
 from fastapi.responses import FileResponse
 
-from server.engine.protocols import Engine
 from server.env_config import get_temp_dir
 from server.errors import ServiceError
-from server.paths import relativize, resolve_allowed_path, to_root_path
+from server.paths import documents_root, resolve_allowed_path
 from server.responses import success
+from server.services.index_queue import IndexQueue, IndexTask
 
 _UPLOAD_CHUNK_SIZE = 1024 * 1024
 
+_SUPPORTED_UPLOAD_SUFFIXES = frozenset(
+    {
+        ".md",
+        ".markdown",
+        ".txt",
+        ".text",
+        ".html",
+        ".htm",
+        ".pdf",
+        ".docx",
+        ".pptx",
+        ".xlsx",
+        ".xls",
+        ".csv",
+        ".json",
+        ".xml",
+        ".epub",
+        ".ipynb",
+        ".jpg",
+        ".jpeg",
+        ".png",
+        ".gif",
+        ".webp",
+        ".bmp",
+        ".tiff",
+        ".zip",
+        ".msg",
+        ".wav",
+        ".mp3",
+    }
+)
 
-def _assert_supported_format(engine: Engine, path: Path) -> None:
+
+def _assert_supported_format(path: Path) -> None:
     suffix = path.suffix.lower()
-    if not engine.is_supported(suffix):
-        supported = ", ".join(sorted(engine.supported_formats()))
+    if suffix not in _SUPPORTED_UPLOAD_SUFFIXES and suffix != "":
+        supported = ", ".join(sorted(extension.lstrip(".") for extension in _SUPPORTED_UPLOAD_SUFFIXES))
         raise ServiceError(
             400,
             f"Unsupported format: {suffix}",
@@ -78,13 +110,12 @@ def resolve_download_path(path: str) -> Path:
         raise ServiceError(
             404,
             f"File not found: {path}",
-            hint="Call GET /list_files to see available paths.",
+            hint="Call GET /api/list_files to see available paths.",
         )
     return resolved
 
 
 def save_uploaded_file(
-    engine: Engine,
     source: BinaryIO,
     original_filename: str | None,
     filedir: str | None = None,
@@ -102,7 +133,7 @@ def save_uploaded_file(
             f"File already exists: {relative_path}",
             hint="Remove the existing file or upload under a different filedir.",
         )
-    _assert_supported_format(engine, full_path)
+    _assert_supported_format(full_path)
 
     temp_path = _stream_to_system_temp(source)
     try:
@@ -118,17 +149,12 @@ def save_uploaded_file(
     return full_path
 
 
-def upload_payload(full_path: Path, indexing: str) -> dict[str, Any]:
-    from server.paths import documents_root
-
+def upload_payload(full_path: Path) -> dict[str, Any]:
     return success(
-        relativize(
-            {
-                "path": full_path.relative_to(documents_root()).as_posix(),
-                "format": full_path.suffix.lstrip("."),
-                "indexing": indexing,
-            }
-        )
+        {
+            "path": full_path.relative_to(documents_root()).as_posix(),
+            "format": full_path.suffix.lstrip("."),
+        }
     )
 
 
@@ -142,7 +168,7 @@ def build_download_response(path: str) -> FileResponse:
     )
 
 
-def remove_file(engine: Engine, path: str) -> dict[str, Any]:
+def remove_file(path: str) -> dict[str, Any]:
     if not path:
         raise ServiceError(400, "Path required", hint="Provide the path of a file to remove.")
 
@@ -151,18 +177,15 @@ def remove_file(engine: Engine, path: str) -> dict[str, Any]:
         raise ServiceError(
             404,
             f"File not found: {path}",
-            hint="Call GET /list_files to see available paths.",
+            hint="Call GET /api/list_files to see available paths.",
         )
 
-    remove_result = engine.remove_by_path(to_root_path(path))
-    if remove_result is None:
-        remove_result = {"path": path, "chunks_removed": 0}
-
+    relative = resolved.relative_to(documents_root()).as_posix()
     resolved.unlink()
-    return success(relativize({**remove_result, "path": path}))
+    return success({"path": relative})
 
 
-def move_file(engine: Engine, source_path: str, dest_path: str) -> dict[str, Any]:
+async def move_file(queue: IndexQueue, source_path: str, dest_path: str) -> dict[str, Any]:
     if not source_path:
         raise ServiceError(
             400,
@@ -183,32 +206,29 @@ def move_file(engine: Engine, source_path: str, dest_path: str) -> dict[str, Any
         raise ServiceError(
             404,
             f"File not found: {source_path}",
-            hint="Call GET /list_files to see available paths.",
+            hint="Call GET /api/list_files to see available paths.",
         )
     if dest_resolved.exists():
         raise ServiceError(
             400,
             f"Destination already exists: {dest_path}",
-            hint="Choose another dest_path or remove the existing file first with POST /remove.",
+            hint="Choose another dest_path or remove the existing file first with POST /api/remove.",
         )
 
-    chunks_removed = 0
-    remove_result = engine.remove_by_path(to_root_path(source_path))
-    if remove_result is not None:
-        chunks_removed = int(remove_result.get("chunks_removed", 0))
+    root = documents_root()
+    source_relative = source_resolved.relative_to(root).as_posix()
+    dest_relative = dest_resolved.relative_to(root).as_posix()
 
     dest_resolved.parent.mkdir(parents=True, exist_ok=True)
     os.replace(source_resolved, dest_resolved)
 
-    payload: dict[str, Any] = {
-        "source_path": source_path,
-        "dest_path": dest_path,
-        "chunks_removed": chunks_removed,
-    }
+    await queue.submit(
+        IndexTask(path=source_relative, kind="move", dest_path=dest_relative)
+    )
 
-    if engine.is_supported(dest_resolved.suffix.lower()):
-        index_result = engine.index_file(dest_resolved)
-        payload["chunks_added"] = index_result.get("chunks_added", 0)
-        payload["format"] = index_result.get("format", dest_resolved.suffix.lstrip("."))
-
-    return success(relativize(payload))
+    return success(
+        {
+            "source_path": source_relative,
+            "dest_path": dest_relative,
+        }
+    )

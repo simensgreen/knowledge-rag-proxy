@@ -1,20 +1,18 @@
-"""Path translation across the API boundary.
+"""Path boundary for the documents root (GRIM_DOCUMENTS_DIR).
 
-The API speaks only in paths relative to the documents root (GRIM_DOCUMENTS_DIR).
-This module is the single crossing point: inbound API paths get the root prefix
-added before an engine call, and every path handed back has the prefix stripped
-before it reaches the client.
+The API and everything below it speak in root-relative POSIX paths. This module
+is the single sanitizing crossing point: an inbound API path is validated and
+canonicalized here (`to_relative_path`) exactly once, then stored in the DB,
+submitted to the index queue, and echoed back verbatim. Downstream code never
+re-sanitizes because those paths are already root-relative.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 from server import env_config
 from server.errors import ServiceError
-
-_PATH_KEYS = frozenset({"path", "source_path", "dest_path", "top_result"})
 
 
 def documents_root() -> Path:
@@ -44,28 +42,11 @@ def resolve_allowed_path(filepath: str) -> Path:
     return resolved
 
 
-def to_root_path(filepath: str) -> str:
-    return str(resolve_allowed_path(filepath))
+def to_relative_path(filepath: str) -> str:
+    """Validate an API-supplied path and return its canonical root-relative form.
 
-
-def to_api_path(path: str) -> str:
-    if not path:
-        return path
-    resolved = Path(path)
-    if not resolved.is_absolute():
-        return resolved.as_posix()
-    root = documents_root()
-    if resolved.is_relative_to(root):
-        return resolved.relative_to(root).as_posix()
-    return resolved.name
-
-
-def relativize(payload: Any) -> Any:
-    if isinstance(payload, dict):
-        return {
-            key: (to_api_path(value) if key in _PATH_KEYS and isinstance(value, str) else relativize(value))
-            for key, value in payload.items()
-        }
-    if isinstance(payload, list):
-        return [relativize(item) for item in payload]
-    return payload
+    The one place inbound paths are sanitized: the result is safe to store,
+    queue, or return without any further normalization.
+    """
+    resolved = resolve_allowed_path(filepath)
+    return resolved.relative_to(documents_root()).as_posix()
