@@ -34,17 +34,20 @@ See root [AGENTS.md](../AGENTS.md).
 
 | Tool | API |
 |------|-----|
-| `grim_search` | `GET /search` |
-| `grim_file` | `GET /file` |
-| `grim_list_files` | `GET /list_files` |
-| `grim_upload` | `POST /upload` |
-| `grim_download` | `GET /download` |
-| `grim_remove` | `POST /remove` |
-| `grim_move` | `POST /move` |
-| `grim_status` | `GET /status` |
-| `grim_markitdown` | `POST /markitdown` |
+| `grim_search` | `GET /api/search` |
+| `grim_file_info` | `GET`/`POST /api/file_info` |
+| `grim_update_content` | `GET`/`POST /api/file_content` |
+| `grim_list_files` | `GET /api/list_files` |
+| `grim_upload_workspace` | `POST /api/upload` (workspace file) |
+| `grim_upload_content` | `POST /api/upload` (inline markdown) |
+| `grim_reindex` | `POST /api/reindex` |
+| `grim_download` | `GET /api/download` |
+| `grim_remove` | `POST /api/remove` |
+| `grim_move` | `POST /api/move` |
+| `grim_status` | `GET /api/status` |
+| `grim_markitdown` | `POST /api/markitdown` |
 
-`/health` is probed at plugin init only.
+`/api/health` is probed at plugin init only.
 
 ## Skill
 

@@ -33,11 +33,11 @@ assistant plugins install https://github.com/simensgreen/grimoire/tree/main/plug
 
 Configure `baseUrl` and `apiToken` in the installed `plugin/config.json` (same value as `GRIM_BEARER`).
 
-## API (10 routes)
+## API (`/api/...`)
 
-`GET /health`, `GET /search`, `GET /file`, `GET /list_files`, `POST /upload`, `GET /download`, `POST /remove`, `POST /move`, `GET /status`, `POST /markitdown`
+`GET /api/health`, `GET /api/search`, `GET /api/file_info`, `GET|POST /api/file_content`, `GET /api/list_files`, `POST /api/upload`, `POST /api/reindex`, `GET /api/download`, `POST /api/remove`, `POST /api/move`, `GET /api/status`, `POST /api/markitdown`
 
-Plugin tools `grim_*` map 1:1 to these routes (`/health` is init probe only).
+Plugin tools `grim_*` map 1:1 (`grim_upload_workspace` / `grim_upload_content` both use `/api/upload`; `/api/health` is init probe only).
 
 ## Layout
 

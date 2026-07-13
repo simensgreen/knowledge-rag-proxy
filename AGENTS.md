@@ -40,7 +40,7 @@ Bearer on all when `GRIM_BEARER` is set; if unset, auth is disabled. Success: `{
 | Method | Path | Notes |
 |--------|------|-------|
 | GET | `/api/health` | `{ok}` — liveness only |
-| GET | `/api/search` | `?query=`, `max_results?` |
+| GET | `/api/search` | `?query=`, `max_results?` — hits: `path, content, breadcrumb, chunk_index, score` |
 | GET | `/api/file_info` | `?path=` — full StoredDoc metadata (+ `description`) |
 | POST | `/api/file_info` | `?path=&description=` — update description only |
 | GET | `/api/file_content` | `?path=` — join `chunk.content` |
@@ -83,9 +83,9 @@ All path fields are root-relative to `GRIM_DOCUMENTS_DIR`. Inbound API paths are
 
 ## Plugin tools (1:1)
 
-`grim_search`, `grim_file`, `grim_list_files`, `grim_upload`, `grim_download`, `grim_remove`, `grim_move`, `grim_status`, `grim_markitdown`
+`grim_search`, `grim_file_info`, `grim_update_content`, `grim_list_files`, `grim_upload_workspace`, `grim_upload_content`, `grim_reindex`, `grim_download`, `grim_remove`, `grim_move`, `grim_status`, `grim_markitdown`
 
-`/api/health` — init hook only. Plugin URLs still need `/api` prefix update (follow-up).
+`/api/health` — init hook only.
 
 ## Secrets
 

@@ -1,6 +1,6 @@
 /** Vellum workspace path resolution and scratch file writes. */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { openPathAsBlob } from "./stream.js";
@@ -54,18 +54,6 @@ export async function openWorkspaceFileBlob(workingDir: string, workspacePath: s
   const absolutePath = resolveWorkspacePath(workingDir, workspacePath);
   try {
     return await openPathAsBlob(absolutePath);
-  } catch {
-    throw new WorkspacePathError(
-      `File not found in workspace: ${workspacePath}`,
-      "Check the path with file_read, or use the conversation attachment basename if the user uploaded a file.",
-    );
-  }
-}
-
-export async function readWorkspaceFile(workingDir: string, workspacePath: string): Promise<Uint8Array> {
-  const absolutePath = resolveWorkspacePath(workingDir, workspacePath);
-  try {
-    return await readFile(absolutePath);
   } catch {
     throw new WorkspacePathError(
       `File not found in workspace: ${workspacePath}`,

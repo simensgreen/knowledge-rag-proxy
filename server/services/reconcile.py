@@ -10,7 +10,6 @@ from server.engine.doc_store import DocStore
 from server.engine.ingest.prepare import file_checksums
 from server.engine.protocols import Parser
 from server.engine.store_models import StoredDoc
-from server.env_config import get_documents_dir
 from server.paths import documents_root
 from server.services.index_queue import IndexQueue, IndexTask
 
@@ -92,7 +91,3 @@ async def reconcile_index(queue: IndexQueue, store: DocStore, parser: Parser) ->
         len(docs),
         retried_failed,
     )
-
-
-def probe_documents_dir_path() -> Path:
-    return get_documents_dir()

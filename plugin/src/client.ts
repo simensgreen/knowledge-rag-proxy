@@ -1,5 +1,5 @@
 /**
- * HTTP client for the self-hosted Grimoire server.
+ * HTTP client for the self-hosted Grimoire server (`/api/...`).
  */
 
 import type { PluginConfig } from "./config.js";
@@ -9,6 +9,7 @@ export interface FetchOptions {
 }
 
 const REQUEST_TIMEOUT_MS = 15000;
+const API_PREFIX = "/api";
 
 function buildSignal(signal?: AbortSignal): AbortSignal {
   const timeout = AbortSignal.timeout(REQUEST_TIMEOUT_MS);
@@ -19,10 +20,21 @@ function authHeaders(config: PluginConfig): Record<string, string> {
   return { Authorization: `Bearer ${config.apiToken}` };
 }
 
-export interface ApiErrorBody {
-  status: "error";
-  message: string;
-  hint?: string;
+function apiUrl(
+  config: PluginConfig,
+  path: string,
+  query?: Record<string, string | number | boolean | undefined>,
+): string {
+  const params = new URLSearchParams();
+  if (query !== undefined) {
+    for (const [key, value] of Object.entries(query)) {
+      if (value !== undefined) {
+        params.set(key, String(value));
+      }
+    }
+  }
+  const queryString = params.toString();
+  return `${config.baseUrl}${API_PREFIX}${path}${queryString.length > 0 ? `?${queryString}` : ""}`;
 }
 
 export class ApiError extends Error {
@@ -64,26 +76,7 @@ async function parseJsonResponse(response: Response): Promise<unknown> {
   }
 }
 
-async function requestGet(
-  config: PluginConfig,
-  path: string,
-  query: Record<string, string | number | boolean | undefined>,
-  options: FetchOptions = {},
-): Promise<SuccessEnvelope> {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(query)) {
-    if (value !== undefined) {
-      params.set(key, String(value));
-    }
-  }
-  const queryString = params.toString();
-  const url = `${config.baseUrl}${path}${queryString.length > 0 ? `?${queryString}` : ""}`;
-  const response = await fetch(url, {
-    signal: buildSignal(options.signal),
-    headers: authHeaders(config),
-  });
-  const payload = await parseJsonResponse(response);
-
+async function parseSuccessEnvelope(response: Response, payload: unknown): Promise<SuccessEnvelope> {
   if (!response.ok) {
     const { message, hint } = parseErrorBody(payload);
     throw new ApiError(response.status, message, hint);
@@ -102,37 +95,66 @@ async function requestGet(
   return envelope as SuccessEnvelope;
 }
 
-async function requestJson(
+async function requestGet(
   config: PluginConfig,
   path: string,
+  query: Record<string, string | number | boolean | undefined>,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  const response = await fetch(apiUrl(config, path, query), {
+    signal: buildSignal(options.signal),
+    headers: authHeaders(config),
+  });
+  const payload = await parseJsonResponse(response);
+  return parseSuccessEnvelope(response, payload);
+}
+
+async function requestPostQuery(
+  config: PluginConfig,
+  path: string,
+  query: Record<string, string | number | boolean | undefined>,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  const response = await fetch(apiUrl(config, path, query), {
+    method: "POST",
+    signal: buildSignal(options.signal),
+    headers: authHeaders(config),
+  });
+  const payload = await parseJsonResponse(response);
+  return parseSuccessEnvelope(response, payload);
+}
+
+async function requestPostJson(
+  config: PluginConfig,
+  path: string,
+  query: Record<string, string | number | boolean | undefined>,
   body: Record<string, unknown>,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  const url = `${config.baseUrl}${path}`;
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(config, path, query), {
     method: "POST",
     signal: buildSignal(options.signal),
     headers: { "Content-Type": "application/json", ...authHeaders(config) },
     body: JSON.stringify(body),
   });
   const payload = await parseJsonResponse(response);
+  return parseSuccessEnvelope(response, payload);
+}
 
-  if (!response.ok) {
-    const { message, hint } = parseErrorBody(payload);
-    throw new ApiError(response.status, message, hint);
-  }
-
-  if (payload === null || typeof payload !== "object") {
-    throw new ApiError(response.status, "Invalid response from server");
-  }
-
-  const envelope = payload as Record<string, unknown>;
-  if (envelope.status === "error") {
-    const { message, hint } = parseErrorBody(envelope);
-    throw new ApiError(response.status, message, hint);
-  }
-
-  return envelope as SuccessEnvelope;
+async function requestMultipart(
+  config: PluginConfig,
+  path: string,
+  formData: FormData,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  const response = await fetch(apiUrl(config, path), {
+    method: "POST",
+    signal: buildSignal(options.signal),
+    headers: authHeaders(config),
+    body: formData,
+  });
+  const payload = await parseJsonResponse(response);
+  return parseSuccessEnvelope(response, payload);
 }
 
 export type ServerReachability =
@@ -144,7 +166,7 @@ export async function probeServerReachable(
   options: FetchOptions = {},
 ): Promise<ServerReachability> {
   try {
-    const response = await fetch(`${config.baseUrl}/health`, {
+    const response = await fetch(apiUrl(config, "/health"), {
       signal: buildSignal(options.signal),
       headers: authHeaders(config),
     });
@@ -172,12 +194,46 @@ export async function search(
   );
 }
 
-export async function getFile(
+export async function getFileInfo(
   config: PluginConfig,
   path: string,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  return requestGet(config, "/file", { path }, options);
+  return requestGet(config, "/file_info", { path }, options);
+}
+
+export async function updateFileInfo(
+  config: PluginConfig,
+  path: string,
+  description: string | undefined,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  return requestPostQuery(config, "/file_info", { path, description }, options);
+}
+
+export async function getFileContent(
+  config: PluginConfig,
+  path: string,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  return requestGet(config, "/file_content", { path }, options);
+}
+
+export async function updateFileContent(
+  config: PluginConfig,
+  path: string,
+  markdown: string,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  return requestPostJson(config, "/file_content", { path }, { markdown }, options);
+}
+
+export async function reindex(
+  config: PluginConfig,
+  path: string,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  return requestPostQuery(config, "/reindex", { path }, options);
 }
 
 export interface ListFilesParams {
@@ -206,15 +262,17 @@ export async function getStatus(
   return requestGet(config, "/status", {}, options);
 }
 
-export interface UploadParams {
+export interface UploadWorkspaceParams {
   file: Blob;
   filename: string;
   filedir?: string;
+  markdown?: string;
+  description?: string;
 }
 
-export async function upload(
+export async function uploadWorkspace(
   config: PluginConfig,
-  params: UploadParams,
+  params: UploadWorkspaceParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
   const formData = new FormData();
@@ -222,32 +280,44 @@ export async function upload(
   if (params.filedir !== undefined) {
     formData.append("filedir", params.filedir);
   }
-
-  const url = `${config.baseUrl}/upload`;
-  const response = await fetch(url, {
-    method: "POST",
-    signal: buildSignal(options.signal),
-    headers: authHeaders(config),
-    body: formData,
-  });
-  const payload = await parseJsonResponse(response);
-
-  if (!response.ok) {
-    const { message, hint } = parseErrorBody(payload);
-    throw new ApiError(response.status, message, hint);
+  if (params.markdown !== undefined) {
+    formData.append("markdown", new Blob([params.markdown], { type: "text/markdown" }), "content.md");
   }
-
-  if (payload === null || typeof payload !== "object") {
-    throw new ApiError(response.status, "Invalid response from server");
+  if (params.description !== undefined) {
+    formData.append("description", params.description);
   }
+  return requestMultipart(config, "/upload", formData, options);
+}
 
-  const envelope = payload as Record<string, unknown>;
-  if (envelope.status === "error") {
-    const { message, hint } = parseErrorBody(envelope);
-    throw new ApiError(response.status, message, hint);
+function splitRootRelativePath(path: string): { filedir?: string; filename: string } {
+  const trimmed = path.replace(/^\/+/, "").replace(/\/+$/, "");
+  const lastSlash = trimmed.lastIndexOf("/");
+  if (lastSlash < 0) {
+    return { filename: trimmed };
   }
+  return {
+    filedir: trimmed.slice(0, lastSlash),
+    filename: trimmed.slice(lastSlash + 1),
+  };
+}
 
-  return envelope as SuccessEnvelope;
+export async function uploadMarkdown(
+  config: PluginConfig,
+  path: string,
+  markdown: string,
+  description: string | undefined,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  const { filedir, filename } = splitRootRelativePath(path);
+  if (filename.length === 0) {
+    throw new ApiError(400, "path must include a filename", "Use a root-relative path like notes/doc.md.");
+  }
+  const blob = new Blob([markdown], { type: "text/markdown; charset=utf-8" });
+  return uploadWorkspace(
+    config,
+    { file: blob, filename, filedir, markdown, description },
+    options,
+  );
 }
 
 export interface DownloadResult {
@@ -276,9 +346,7 @@ export async function download(
   path: string,
   options: FetchOptions = {},
 ): Promise<DownloadResult> {
-  const params = new URLSearchParams({ path });
-  const url = `${config.baseUrl}/download?${params.toString()}`;
-  const response = await fetch(url, {
+  const response = await fetch(apiUrl(config, "/download", { path }), {
     signal: buildSignal(options.signal),
     headers: authHeaders(config),
   });
@@ -304,7 +372,7 @@ export async function removeFile(
   path: string,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  return requestJson(config, "/remove", { path }, options);
+  return requestPostQuery(config, "/remove", { path }, options);
 }
 
 export interface MoveParams {
@@ -317,40 +385,25 @@ export async function moveFile(
   params: MoveParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  return requestJson(config, "/move", params as unknown as Record<string, unknown>, options);
+  return requestPostQuery(
+    config,
+    "/move",
+    params as unknown as Record<string, string | number | boolean | undefined>,
+    options,
+  );
+}
+
+export interface MarkitdownParams {
+  file: Blob;
+  filename: string;
 }
 
 export async function markitdownUpload(
   config: PluginConfig,
-  params: UploadParams,
+  params: MarkitdownParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
   const formData = new FormData();
   formData.append("file", params.file, params.filename);
-
-  const url = `${config.baseUrl}/markitdown`;
-  const response = await fetch(url, {
-    method: "POST",
-    signal: buildSignal(options.signal),
-    headers: authHeaders(config),
-    body: formData,
-  });
-  const payload = await parseJsonResponse(response);
-
-  if (!response.ok) {
-    const { message, hint } = parseErrorBody(payload);
-    throw new ApiError(response.status, message, hint);
-  }
-
-  if (payload === null || typeof payload !== "object") {
-    throw new ApiError(response.status, "Invalid response from server");
-  }
-
-  const envelope = payload as Record<string, unknown>;
-  if (envelope.status === "error") {
-    const { message, hint } = parseErrorBody(envelope);
-    throw new ApiError(response.status, message, hint);
-  }
-
-  return envelope as SuccessEnvelope;
+  return requestMultipart(config, "/markitdown", formData, options);
 }

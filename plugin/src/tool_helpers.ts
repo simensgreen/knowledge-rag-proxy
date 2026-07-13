@@ -164,11 +164,6 @@ export function optionalNumber(input: Record<string, unknown>, key: string): num
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-export function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {
-  const value = input[key];
-  return typeof value === "boolean" ? value : undefined;
-}
-
 export function requiredString(
   input: Record<string, unknown>,
   key: string,

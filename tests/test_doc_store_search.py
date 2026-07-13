@@ -79,7 +79,8 @@ def test_fulltext_search_matches_keyword(seeded_doc_store: DocStore) -> None:
     results = seeded_doc_store.search("foxes", [0.9, 0.1, 0.0, 0.0], 5)
     assert results
     assert results[0]["path"] == "docs/foxes.md"
-    assert results[0]["filename"] == "foxes.md"
+    assert results[0]["path"] == "docs/foxes.md"
+    assert "filename" not in results[0]
 
 
 def test_vector_search_ranks_nearest_embedding(seeded_doc_store: DocStore) -> None:

@@ -66,7 +66,6 @@ def _fuse_rankings(
         results.append(
             {
                 "path": path,
-                "filename": path.rsplit("/", 1)[-1],
                 "content": str(row.get("content") or ""),
                 "breadcrumb": row.get("breadcrumb"),
                 "chunk_index": row.get("chunk_index"),

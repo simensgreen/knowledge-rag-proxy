@@ -78,7 +78,6 @@ class FakeDocStore:
                 results.append(
                     {
                         "path": document.path,
-                        "filename": document.path.rsplit("/", 1)[-1],
                         "content": chunk.content,
                         "breadcrumb": chunk.breadcrumb,
                         "chunk_index": chunk.chunk_index,
