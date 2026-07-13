@@ -194,6 +194,10 @@ def apply_env_config() -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
 
+def is_watcher_disabled() -> bool:
+    return os.environ.get("KRP_WATCH_DISABLED", "").strip() == "1"
+
+
 def get_watcher_debounce_seconds() -> float:
     debounce = _optional_int("KRP_WATCH_DEBOUNCE")
     if debounce is not None and debounce > 0:

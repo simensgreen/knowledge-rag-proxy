@@ -1,12 +1,13 @@
 import type { ToolContext, ToolExecutionResult } from "@vellumai/plugin-api";
 
 import { downloadDocument } from "../src/client.js";
-import { jsonResult, requireReadyState, formatApiError, errorResult, requiredString } from "../src/tool_helpers.js";
+import { jsonResult, requireReadyState, formatApiError, errorResult, requiredString, withSkillReference } from "../src/tool_helpers.js";
 import { writeScratchFile } from "../src/workspace.js";
 
 export default {
-  description:
+  description: withSkillReference(
     "Download a document from the knowledge base into the Vellum workspace scratch area. Returns metadata and workspace_path only — use file_read to read the file.",
+  ),
   defaultRiskLevel: "low" as const,
   input_schema: {
     type: "object",

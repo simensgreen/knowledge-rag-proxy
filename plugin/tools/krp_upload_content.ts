@@ -6,11 +6,13 @@ import {
   optionalString,
   requiredString,
   runTool,
+  withSkillReference,
 } from "../src/tool_helpers.js";
 
 export default {
-  description:
-    "Upload generated or edited text into the knowledge base. Use when you wrote content in-chat and want to index it. Do not use for files already on disk — use krp_upload_workspace instead.",
+  description: withSkillReference(
+    "Upload generated or edited text into the knowledge base. Use when you wrote content in-chat and want to index it. Do not use for files already on disk — use krp_upload_workspace instead. Default is save-only; the server watcher indexes later. Set return_document=true to wait for parsing and receive parsed text.",
+  ),
   defaultRiskLevel: "medium" as const,
   input_schema: {
     type: "object",
@@ -33,7 +35,8 @@ export default {
       },
       return_document: {
         type: "boolean",
-        description: "If true, include parsed document content in the response. Default false.",
+        description:
+          "If true, wait for parsing and include parsed document content in the response. Default false (save-only; watcher indexes later).",
       },
     },
     required: ["content", "filename"],

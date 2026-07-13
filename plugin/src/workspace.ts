@@ -3,6 +3,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { openPathAsBlob } from "./stream.js";
+
 export class WorkspacePathError extends Error {
   readonly hint: string;
 
@@ -48,6 +50,18 @@ export function resolveWorkspacePath(workingDir: string, relativePath: string): 
   return resolved;
 }
 
+export async function openWorkspaceFileBlob(workingDir: string, workspacePath: string): Promise<Blob> {
+  const absolutePath = resolveWorkspacePath(workingDir, workspacePath);
+  try {
+    return await openPathAsBlob(absolutePath);
+  } catch {
+    throw new WorkspacePathError(
+      `File not found in workspace: ${workspacePath}`,
+      "Check the path with file_read, or use the conversation attachment basename if the user uploaded a file.",
+    );
+  }
+}
+
 export async function readWorkspaceFile(workingDir: string, workspacePath: string): Promise<Uint8Array> {
   const absolutePath = resolveWorkspacePath(workingDir, workspacePath);
   try {
@@ -61,6 +75,14 @@ export async function readWorkspaceFile(workingDir: string, workspacePath: strin
 }
 
 const SCRATCH_PREFIX = "scratch/knowledge-rag-proxy";
+
+export async function writeScratchText(
+  workingDir: string,
+  relativePath: string,
+  text: string,
+): Promise<string> {
+  return writeScratchFile(workingDir, relativePath, new TextEncoder().encode(text));
+}
 
 export async function writeScratchFile(
   workingDir: string,

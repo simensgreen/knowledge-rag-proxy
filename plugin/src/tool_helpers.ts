@@ -7,6 +7,14 @@ import type { PluginConfig } from "./config.js";
 import { getState } from "./state.js";
 import { WorkspacePathError } from "./workspace.js";
 
+export const KRP_SKILL_PATH = "skills/knowledge-rag-proxy/SKILL.md";
+
+export const KRP_SKILL_REFERENCE = `If unsure which krp_* tool or parameters to use, or calls keep failing, load the knowledge-rag-proxy skill (${KRP_SKILL_PATH}).`;
+
+export function withSkillReference(description: string): string {
+  return `${description} ${KRP_SKILL_REFERENCE}`;
+}
+
 export interface ToolErrorPayload {
   status: "error";
   message: string;

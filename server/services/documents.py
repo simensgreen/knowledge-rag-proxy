@@ -100,12 +100,24 @@ def resolve_download_path(filepath: str) -> Path:
     return resolved
 
 
-def index_saved_file(
+def _document_payload(document: Any) -> dict[str, Any]:
+    return {
+        "content": document.content,
+        "source": str(document.source),
+        "filename": document.filename,
+        "category": document.category,
+        "format": document.format,
+        "metadata": document.metadata,
+        "keywords": document.keywords,
+        "chunk_count": len(document.chunks),
+    }
+
+
+def _parse_document(
     orchestrator: KnowledgeOrchestrator,
     full_path: Path,
     category: str | None = None,
-) -> dict[str, Any]:
-    """Parse and index a file already written to disk."""
+) -> tuple[Any, str]:
     _assert_supported_format(orchestrator, full_path)
 
     document = orchestrator.parser.parse_file(full_path)
@@ -120,6 +132,103 @@ def index_saved_file(
     document.category = resolved_category
     for chunk in document.chunks:
         chunk.metadata["category"] = resolved_category
+
+    return document, resolved_category
+
+
+def parse_saved_file(
+    orchestrator: KnowledgeOrchestrator,
+    full_path: Path,
+    category: str | None = None,
+) -> dict[str, Any]:
+    """Parse a file on disk without indexing it."""
+    document, resolved_category = _parse_document(orchestrator, full_path, category=category)
+    return {
+        "filepath": str(full_path),
+        "format": document.format,
+        "category": resolved_category,
+        "document": _document_payload(document),
+    }
+
+
+def save_uploaded_file(
+    orchestrator: KnowledgeOrchestrator,
+    source: BinaryIO,
+    original_filename: str | None,
+    filedir: str | None = None,
+) -> Path:
+    # filedir is a directory under KRP_DOCUMENTS_DIR (omitted -> the root). The
+    # file keeps its own uploaded name; only the bare name is used so a filename
+    # containing path separators can't escape the chosen directory.
+    filename = Path(original_filename).name if original_filename else ""
+    if not filename:
+        filename = f"{datetime.now():%Y%m%d-%H%M%S}.bin"
+
+    relative_path = str(Path(filedir) / filename) if filedir else filename
+    full_path = resolve_allowed_path(relative_path)
+
+    # Validate before touching disk so a rejected upload writes nothing.
+    if full_path.exists():
+        raise ServiceError(
+            400,
+            f"File already exists: {full_path}",
+            hint="Remove the existing file or upload under a different filedir.",
+        )
+    _assert_supported_format(orchestrator, full_path)
+
+    temp_path = _stream_to_system_temp(source)
+    try:
+        if temp_path.stat().st_size == 0:
+            raise ServiceError(
+                400, "Uploaded file is empty", hint="Attach a non-empty file in the multipart form."
+            )
+        _finalize_upload(temp_path, full_path)
+    except BaseException:
+        temp_path.unlink(missing_ok=True)
+        raise
+
+    return full_path
+
+
+def saved_upload_payload(full_path: Path, indexing: str) -> dict[str, Any]:
+    return success(
+        relativize(
+            {
+                "filepath": str(full_path),
+                "format": full_path.suffix.lstrip("."),
+                "indexing": indexing,
+            }
+        )
+    )
+
+
+def parse_uploaded_payload(
+    orchestrator: KnowledgeOrchestrator,
+    full_path: Path,
+    category: str | None,
+    indexing: str,
+) -> dict[str, Any]:
+    parse_result = parse_saved_file(orchestrator, full_path, category=category)
+    return success(
+        relativize(
+            {
+                "filepath": parse_result["filepath"],
+                "format": parse_result["format"],
+                "category": parse_result["category"],
+                "indexing": indexing,
+                "document": parse_result["document"],
+            }
+        )
+    )
+
+
+def index_saved_file(
+    orchestrator: KnowledgeOrchestrator,
+    full_path: Path,
+    category: str | None = None,
+) -> dict[str, Any]:
+    """Parse and index a file already written to disk."""
+    document, resolved_category = _parse_document(orchestrator, full_path, category=category)
 
     chunks_added, dedup_skipped = orchestrator._index_document(document)
 
@@ -152,69 +261,8 @@ def index_saved_file(
         "chunks_added": chunks_added,
         "dedup_skipped": dedup_skipped,
         "category": resolved_category,
-        "document": {
-            "content": document.content,
-            "source": str(document.source),
-            "filename": document.filename,
-            "category": document.category,
-            "format": document.format,
-            "metadata": document.metadata,
-            "keywords": document.keywords,
-            "chunk_count": len(document.chunks),
-        },
+        "document": _document_payload(document),
     }
-
-
-def upload_file(
-    orchestrator: KnowledgeOrchestrator,
-    source: BinaryIO,
-    original_filename: str | None,
-    filedir: str | None = None,
-    category: str | None = None,
-    return_document: bool = False,
-) -> dict[str, Any]:
-    # filedir is a directory under KRP_DOCUMENTS_DIR (omitted -> the root). The
-    # file keeps its own uploaded name; only the bare name is used so a filename
-    # containing path separators can't escape the chosen directory.
-    filename = Path(original_filename).name if original_filename else ""
-    if not filename:
-        filename = f"{datetime.now():%Y%m%d-%H%M%S}.bin"
-
-    relative_path = str(Path(filedir) / filename) if filedir else filename
-    full_path = resolve_allowed_path(relative_path)
-
-    # Validate before touching disk so a rejected upload writes nothing.
-    if full_path.exists():
-        raise ServiceError(
-            400,
-            f"File already exists: {full_path}",
-            hint="Remove the existing file or upload under a different filedir.",
-        )
-    _assert_supported_format(orchestrator, full_path)
-
-    temp_path = _stream_to_system_temp(source)
-    try:
-        if temp_path.stat().st_size == 0:
-            raise ServiceError(
-                400, "Uploaded file is empty", hint="Attach a non-empty file in the multipart form."
-            )
-        _finalize_upload(temp_path, full_path)
-    except BaseException:
-        temp_path.unlink(missing_ok=True)
-        raise
-
-    index_result = index_saved_file(orchestrator, full_path, category=category)
-
-    payload: dict[str, Any] = {
-        "filepath": index_result["filepath"],
-        "format": index_result["format"],
-        "chunks_added": index_result["chunks_added"],
-        "dedup_skipped": index_result["dedup_skipped"],
-        "category": index_result["category"],
-    }
-    if return_document:
-        payload["document"] = index_result["document"]
-    return success(relativize(payload))
 
 
 def build_download_response(filepath: str) -> FileResponse:

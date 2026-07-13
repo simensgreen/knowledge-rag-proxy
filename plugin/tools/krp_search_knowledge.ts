@@ -7,11 +7,13 @@ import {
   optionalString,
   requiredString,
   runTool,
+  withSkillReference,
 } from "../src/tool_helpers.js";
 
 export default {
-  description:
+  description: withSkillReference(
     "Search indexed documents in the knowledge base. Use when the user asks to find information in their documents.",
+  ),
   defaultRiskLevel: "low" as const,
   input_schema: {
     type: "object",

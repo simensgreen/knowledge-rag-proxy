@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Query, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from mcp_server.server import KnowledgeOrchestrator
 
 from server.deps import get_orchestrator_dep
+from server.env_config import is_watcher_disabled
 from server.errors import ServiceError
 from server.responses import error_response
 from server.schemas import MoveDocumentRequest
@@ -22,6 +23,7 @@ OrchestratorDep = Annotated[KnowledgeOrchestrator, Depends(get_orchestrator_dep)
 
 @router.post("/upload")
 async def upload(
+    background_tasks: BackgroundTasks,
     orchestrator: Annotated[KnowledgeOrchestrator, Depends(get_orchestrator_dep)],
     file: Annotated[UploadFile, File()],
     filedir: Annotated[str | None, Form()] = None,
@@ -30,15 +32,33 @@ async def upload(
 ) -> dict:
     # Stream the spooled upload straight to disk in a worker thread; never
     # materialize the whole file in memory.
-    return await run_in_threadpool(
-        documents_service.upload_file,
+    full_path = await run_in_threadpool(
+        documents_service.save_uploaded_file,
         orchestrator,
         file.file,
         file.filename,
         filedir,
-        category,
-        return_document,
     )
+
+    indexing = "background" if is_watcher_disabled() else "watcher"
+    if is_watcher_disabled():
+        background_tasks.add_task(
+            documents_service.index_saved_file,
+            orchestrator,
+            full_path,
+            category,
+        )
+
+    if return_document:
+        return await run_in_threadpool(
+            documents_service.parse_uploaded_payload,
+            orchestrator,
+            full_path,
+            category,
+            indexing,
+        )
+
+    return documents_service.saved_upload_payload(full_path, indexing)
 
 
 @router.get("/download")

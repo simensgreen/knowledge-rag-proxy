@@ -3,6 +3,10 @@
 export interface PluginConfig {
   baseUrl: string;
   apiToken: string;
+  autoIndexAttachments: boolean;
+  injectAttachmentDocument: boolean;
+  attachmentFiledir: string;
+  attachmentMaxInjectChars: number;
 }
 
 export function parsePluginConfig(raw: unknown): PluginConfig {
@@ -24,5 +28,24 @@ export function parsePluginConfig(raw: unknown): PluginConfig {
     throw new Error("knowledge-rag-proxy: config.apiToken is required (same value as KRP_BEARER on the server)");
   }
 
-  return { baseUrl, apiToken };
+  const attachmentFiledir =
+    typeof record.attachmentFiledir === "string" && record.attachmentFiledir.trim().length > 0
+      ? record.attachmentFiledir.trim().replace(/^\/+|\/+$/g, "")
+      : "vellum";
+
+  const attachmentMaxInjectChars =
+    typeof record.attachmentMaxInjectChars === "number" &&
+    Number.isFinite(record.attachmentMaxInjectChars) &&
+    record.attachmentMaxInjectChars > 0
+      ? Math.floor(record.attachmentMaxInjectChars)
+      : 20_000;
+
+  return {
+    baseUrl,
+    apiToken,
+    autoIndexAttachments: record.autoIndexAttachments !== false,
+    injectAttachmentDocument: record.injectAttachmentDocument !== false,
+    attachmentFiledir,
+    attachmentMaxInjectChars,
+  };
 }

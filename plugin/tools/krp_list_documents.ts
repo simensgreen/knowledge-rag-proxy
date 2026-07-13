@@ -1,11 +1,12 @@
 import type { ToolContext, ToolExecutionResult } from "@vellumai/plugin-api";
 
 import { listDocuments } from "../src/client.js";
-import { optionalNumber, optionalString, runTool } from "../src/tool_helpers.js";
+import { optionalNumber, optionalString, runTool, withSkillReference } from "../src/tool_helpers.js";
 
 export default {
-  description:
+  description: withSkillReference(
     "List documents in the knowledge base index with optional filters and pagination.",
+  ),
   defaultRiskLevel: "low" as const,
   input_schema: {
     type: "object",

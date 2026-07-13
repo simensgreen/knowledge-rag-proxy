@@ -35,6 +35,7 @@ class MockOrchestrator:
         self._indexed_docs: dict[str, dict[str, Any]] = {}
         self._source_to_docid: dict[str, str] = {}
         self.parser = MagicMock()
+        self._index_document = MagicMock(return_value=(2, 0))
 
     def query(self, *_args, **_kwargs) -> list[dict[str, Any]]:
         return [{"content": "sample content", "score": 0.9, "source": "docs/a.md"}]
@@ -112,10 +113,6 @@ class MockOrchestrator:
     def search_similar(self, filepath: str, max_results: int = 5) -> list[dict[str, Any]]:
         del filepath, max_results
         return [{"source": "docs/b.md", "score": 0.8}]
-
-    def _index_document(self, document: Any) -> tuple[int, int]:
-        del document
-        return 2, 0
 
     def _save_metadata(self) -> None:
         pass

@@ -1,11 +1,12 @@
 import type { ToolContext, ToolExecutionResult } from "@vellumai/plugin-api";
 
 import { getDocument } from "../src/client.js";
-import { requiredString, runTool } from "../src/tool_helpers.js";
+import { requiredString, runTool, withSkillReference } from "../src/tool_helpers.js";
 
 export default {
-  description:
+  description: withSkillReference(
     "Fetch the full parsed content of an indexed document by its root-relative filepath.",
+  ),
   defaultRiskLevel: "low" as const,
   input_schema: {
     type: "object",

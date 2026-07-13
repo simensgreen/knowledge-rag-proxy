@@ -240,17 +240,6 @@ def test_upload_success_without_document(
     mock_orchestrator: MockOrchestrator,
     temp_dirs: dict[str, Path],
 ) -> None:
-    mock_document = MagicMock()
-    mock_document.content = "parsed"
-    mock_document.source = temp_dirs["documents_dir"] / "note.md"
-    mock_document.filename = "note.md"
-    mock_document.category = "general"
-    mock_document.format = ".md"
-    mock_document.metadata = {}
-    mock_document.keywords = []
-    mock_document.chunks = [MagicMock()]
-    mock_document.id = "doc-1"
-    mock_orchestrator.parser.parse_file.return_value = mock_document
     mock_orchestrator.parser._parsers = {".md": lambda _path: ("", {})}
 
     response = client.post(
@@ -262,10 +251,11 @@ def test_upload_success_without_document(
     payload = response.json()
     assert payload["status"] == "success"
     assert "document" not in payload
-    assert payload["chunks_added"] == 2
-    # Upload echoes a root-relative path, never the absolute disk path.
+    assert "chunks_added" not in payload
+    assert payload["indexing"] == "background"
     assert payload["filepath"] == "note.md"
     assert not Path(payload["filepath"]).is_absolute()
+    assert (temp_dirs["documents_dir"] / "note.md").is_file()
 
 
 def test_upload_return_document(
@@ -296,6 +286,57 @@ def test_upload_return_document(
     assert response.status_code == 200
     payload = response.json()
     assert payload["document"]["content"] == "parsed"
+    assert "chunks_added" not in payload
+    assert payload["indexing"] == "background"
+
+
+def test_upload_watcher_enabled_returns_watcher_indexing(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    mock_orchestrator: MockOrchestrator,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("KRP_WATCH_DISABLED", raising=False)
+    mock_orchestrator.parser._parsers = {".md": lambda _path: ("", {})}
+
+    response = client.post(
+        "/upload",
+        headers=auth_headers,
+        files={"file": ("watcher.md", b"# hello", "text/markdown")},
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["indexing"] == "watcher"
+    mock_orchestrator._index_document.assert_not_called()
+
+
+def test_upload_background_indexes_when_watcher_disabled(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    mock_orchestrator: MockOrchestrator,
+    temp_dirs: dict[str, Path],
+) -> None:
+    mock_document = MagicMock()
+    mock_document.content = "parsed"
+    mock_document.source = temp_dirs["documents_dir"] / "bg.md"
+    mock_document.filename = "bg.md"
+    mock_document.category = "general"
+    mock_document.format = ".md"
+    mock_document.metadata = {}
+    mock_document.keywords = []
+    mock_document.chunks = [MagicMock()]
+    mock_document.id = "doc-bg"
+    mock_orchestrator.parser.parse_file.return_value = mock_document
+    mock_orchestrator.parser._parsers = {".md": lambda _path: ("", {})}
+
+    response = client.post(
+        "/upload",
+        headers=auth_headers,
+        files={"file": ("bg.md", b"# hello", "text/markdown")},
+    )
+    assert response.status_code == 200
+    assert response.json()["indexing"] == "background"
+    mock_orchestrator._index_document.assert_called_once()
 
 
 def test_upload_into_filedir(

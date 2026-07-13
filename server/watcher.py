@@ -2,20 +2,19 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 from mcp_server.server import DocumentWatcher, get_orchestrator
 from watchdog.observers import Observer
 
-from server.env_config import get_allowed_roots, get_watcher_debounce_seconds
+from server.env_config import get_allowed_roots, get_watcher_debounce_seconds, is_watcher_disabled
 
 _observers: list[Observer] = []
 
 
 def start_watchers() -> None:
     """Start DocumentWatcher on the documents directory."""
-    if os.environ.get("KRP_WATCH_DISABLED", "").strip() == "1":
+    if is_watcher_disabled():
         return
 
     debounce_seconds = get_watcher_debounce_seconds()

@@ -8,12 +8,14 @@ import {
   optionalString,
   requiredString,
   runTool,
+  withSkillReference,
 } from "../src/tool_helpers.js";
-import { readWorkspaceFile } from "../src/workspace.js";
+import { openWorkspaceFileBlob } from "../src/workspace.js";
 
 export default {
-  description:
-    "Upload a file from the Vellum workspace into the knowledge base. Use when the file already exists on disk (chat attachment, scratch, file_read path). Do not paste file bytes — pass workspace_path.",
+  description: withSkillReference(
+    "Upload a file from the Vellum workspace into the knowledge base. Use when the file already exists on disk (chat attachment, scratch, file_read path). Do not paste file bytes — pass workspace_path. Default is save-only; the server watcher indexes later. Set return_document=true to wait for parsing and receive parsed text.",
+  ),
   defaultRiskLevel: "medium" as const,
   input_schema: {
     type: "object",
@@ -32,7 +34,8 @@ export default {
       },
       return_document: {
         type: "boolean",
-        description: "If true, include parsed document content in the response. Default false.",
+        description:
+          "If true, wait for parsing and include parsed document content in the response. Default false (save-only; watcher indexes later).",
       },
     },
     required: ["workspace_path"],
@@ -51,9 +54,8 @@ export default {
     }
 
     return runTool(async (config) => {
-      const bytes = await readWorkspaceFile(ctx.workingDir, workspacePath);
+      const blob = await openWorkspaceFileBlob(ctx.workingDir, workspacePath);
       const filename = path.basename(workspacePath);
-      const blob = new Blob([Uint8Array.from(bytes)]);
       return uploadDocument(
         config,
         {
