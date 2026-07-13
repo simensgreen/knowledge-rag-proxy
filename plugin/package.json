@@ -1,7 +1,7 @@
 {
-  "name": "@simensgreen/knowledge-rag-proxy",
+  "name": "@simensgreen/grimuire_vellum",
   "version": "0.1.0",
-  "description": "Search and upload documents via a self-hosted knowledge-rag REST server.",
+  "description": "Search and manage documents via a self-hosted Grimoire REST server.",
   "type": "module",
   "license": "MIT",
   "engines": {

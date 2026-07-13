@@ -1,4 +1,4 @@
 {
-  "baseUrl": "https://kb.example.com",
-  "apiToken": "replace-with-your-KRP_BEARER-token"
+  "baseUrl": "http://127.0.0.1:8000",
+  "apiToken": "replace-with-your-GRIM_BEARER-token"
 }

@@ -3,20 +3,20 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>local.knowledge-rag-proxy</string>
+	<string>local.grimoire</string>
 	<key>WorkingDirectory</key>
-	<string>/path/to/knowledge-rag-proxy</string>
+	<string>/path/to/grimoire</string>
 	<key>ProgramArguments</key>
 	<array>
-		<string>/path/to/knowledge-rag-proxy/scripts/run-server.sh</string>
+		<string>/path/to/grimoire/scripts/run-server.sh</string>
 	</array>
 	<key>RunAtLoad</key>
 	<true/>
 	<key>KeepAlive</key>
 	<true/>
 	<key>StandardOutPath</key>
-	<string>/path/to/knowledge-rag-proxy/logs/stdout.log</string>
+	<string>/path/to/grimoire/logs/stdout.log</string>
 	<key>StandardErrorPath</key>
-	<string>/path/to/knowledge-rag-proxy/logs/stderr.log</string>
+	<string>/path/to/grimoire/logs/stderr.log</string>
 </dict>
 </plist>

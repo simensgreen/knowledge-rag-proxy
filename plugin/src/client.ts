@@ -1,10 +1,5 @@
 /**
- * HTTP client for the self-hosted knowledge-rag-proxy server.
- *
- * The Bearer token is read from config.apiToken and set on every request.
- * Vellum's credential vault (CES) only injects into the `bash` tool / built-in
- * executors, never into a plugin's in-process fetch, so the plugin authenticates
- * itself. The token stays inside this process; it is never returned to the LLM.
+ * HTTP client for the self-hosted Grimoire server.
  */
 
 import type { PluginConfig } from "./config.js";
@@ -13,8 +8,6 @@ export interface FetchOptions {
   signal?: AbortSignal;
 }
 
-// Fail fast on an unreachable/hanging server instead of blocking a tool call
-// until the OS TCP timeout. Combined with the caller's cancel signal.
 const REQUEST_TIMEOUT_MS = 15000;
 
 function buildSignal(signal?: AbortSignal): AbortSignal {
@@ -146,11 +139,6 @@ export type ServerReachability =
   | { reachable: true; status: number; authenticated: boolean }
   | { reachable: false; error: string };
 
-/**
- * Boot-time probe. The token is sent, so a reachable server also reports whether
- * the configured token is accepted (`authenticated`). A thrown fetch (network
- * error / timeout) means "unreachable".
- */
 export async function probeServerReachable(
   config: PluginConfig,
   options: FetchOptions = {},
@@ -166,79 +154,73 @@ export async function probeServerReachable(
   }
 }
 
-export interface SearchKnowledgeParams {
+export interface SearchParams {
   query: string;
   max_results?: number;
-  category?: string;
-  hybrid_alpha?: number;
-  min_score?: number;
-  snippet_mode?: boolean;
 }
 
-export async function searchKnowledge(
+export async function search(
   config: PluginConfig,
-  params: SearchKnowledgeParams,
+  params: SearchParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
   return requestGet(
     config,
-    "/search_knowledge",
+    "/search",
     params as unknown as Record<string, string | number | boolean | undefined>,
     options,
   );
 }
 
-export interface ListDocumentsParams {
-  category?: string;
+export async function getFile(
+  config: PluginConfig,
+  path: string,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  return requestGet(config, "/file", { path }, options);
+}
+
+export interface ListFilesParams {
   path?: string;
   limit?: number;
   offset?: number;
 }
 
-export async function listDocuments(
+export async function listFiles(
   config: PluginConfig,
-  params: ListDocumentsParams,
+  params: ListFilesParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
   return requestGet(
     config,
-    "/list_documents",
+    "/list_files",
     params as unknown as Record<string, string | number | boolean | undefined>,
     options,
   );
 }
 
-export async function getDocument(
+export async function getStatus(
   config: PluginConfig,
-  filepath: string,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  return requestGet(config, "/get_document", { filepath }, options);
+  return requestGet(config, "/status", {}, options);
 }
 
-export interface UploadDocumentParams {
+export interface UploadParams {
   file: Blob;
   filename: string;
   filedir?: string;
-  category?: string;
-  returnDocument?: boolean;
 }
 
-export async function uploadDocument(
+export async function upload(
   config: PluginConfig,
-  params: UploadDocumentParams,
+  params: UploadParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
   const formData = new FormData();
   formData.append("file", params.file, params.filename);
   if (params.filedir !== undefined) {
     formData.append("filedir", params.filedir);
-  }
-  if (params.category !== undefined) {
-    formData.append("category", params.category);
-  }
-  if (params.returnDocument === true) {
-    formData.append("return", "true");
   }
 
   const url = `${config.baseUrl}/upload`;
@@ -268,7 +250,7 @@ export async function uploadDocument(
   return envelope as SuccessEnvelope;
 }
 
-export interface DownloadDocumentResult {
+export interface DownloadResult {
   bytes: Uint8Array;
   mediaType: string;
   filename: string;
@@ -289,12 +271,12 @@ function parseContentDispositionFilename(header: string | null): string | undefi
   return decodeURIComponent(captured.replace(/"/g, ""));
 }
 
-export async function downloadDocument(
+export async function download(
   config: PluginConfig,
-  filepath: string,
+  path: string,
   options: FetchOptions = {},
-): Promise<DownloadDocumentResult> {
-  const params = new URLSearchParams({ filepath });
+): Promise<DownloadResult> {
+  const params = new URLSearchParams({ path });
   const url = `${config.baseUrl}/download?${params.toString()}`;
   const response = await fetch(url, {
     signal: buildSignal(options.signal),
@@ -311,47 +293,64 @@ export async function downloadDocument(
   const mediaType = response.headers.get("content-type") ?? "application/octet-stream";
   const filename =
     parseContentDispositionFilename(response.headers.get("content-disposition")) ??
-    filepath.split("/").pop() ??
+    path.split("/").pop() ??
     "download.bin";
 
   return { bytes, mediaType, filename };
 }
 
-export interface RemoveDocumentParams {
-  filepath: string;
-  deleteFile?: boolean;
-}
-
-export async function removeDocument(
+export async function removeFile(
   config: PluginConfig,
-  params: RemoveDocumentParams,
+  path: string,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  return requestJson(
-    config,
-    "/remove_document",
-    {
-      filepath: params.filepath,
-      delete_file: params.deleteFile ?? false,
-    },
-    options,
-  );
+  return requestJson(config, "/remove", { path }, options);
 }
 
-export interface MoveDocumentParams {
-  source_filepath: string;
-  dest_filepath: string;
+export interface MoveParams {
+  source_path: string;
+  dest_path: string;
 }
 
-export async function moveDocument(
+export async function moveFile(
   config: PluginConfig,
-  params: MoveDocumentParams,
+  params: MoveParams,
   options: FetchOptions = {},
 ): Promise<SuccessEnvelope> {
-  return requestJson(
-    config,
-    "/move_document",
-    params as unknown as Record<string, unknown>,
-    options,
-  );
+  return requestJson(config, "/move", params as unknown as Record<string, unknown>, options);
+}
+
+export async function markitdownUpload(
+  config: PluginConfig,
+  params: UploadParams,
+  options: FetchOptions = {},
+): Promise<SuccessEnvelope> {
+  const formData = new FormData();
+  formData.append("file", params.file, params.filename);
+
+  const url = `${config.baseUrl}/markitdown`;
+  const response = await fetch(url, {
+    method: "POST",
+    signal: buildSignal(options.signal),
+    headers: authHeaders(config),
+    body: formData,
+  });
+  const payload = await parseJsonResponse(response);
+
+  if (!response.ok) {
+    const { message, hint } = parseErrorBody(payload);
+    throw new ApiError(response.status, message, hint);
+  }
+
+  if (payload === null || typeof payload !== "object") {
+    throw new ApiError(response.status, "Invalid response from server");
+  }
+
+  const envelope = payload as Record<string, unknown>;
+  if (envelope.status === "error") {
+    const { message, hint } = parseErrorBody(envelope);
+    throw new ApiError(response.status, message, hint);
+  }
+
+  return envelope as SuccessEnvelope;
 }

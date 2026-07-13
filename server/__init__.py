@@ -1,1 +1,1 @@
-"""FastAPI REST proxy over knowledge-rag."""
+"""Grimoire FastAPI server."""

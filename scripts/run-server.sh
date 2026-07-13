@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Launch knowledge-rag-proxy via uvicorn. Sources .env from repo root.
+# Launch grimoire via uvicorn. Sources .env from repo root.
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

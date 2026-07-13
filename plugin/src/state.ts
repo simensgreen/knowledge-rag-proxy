@@ -19,7 +19,7 @@ export function setState(partial: Partial<PluginRuntimeState>): void {
 export function requireConfig(): PluginConfig {
   const config = runtimeState.config;
   if (config === null) {
-    throw new Error("knowledge-rag-proxy: plugin not initialized");
+    throw new Error("grimoire: plugin not initialized");
   }
   return config;
 }

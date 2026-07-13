@@ -5,21 +5,10 @@ from __future__ import annotations
 from pydantic import BaseModel
 
 
-class ReindexDocumentsRequest(BaseModel):
-    force: bool = False
-    full_rebuild: bool = False
+class RemoveRequest(BaseModel):
+    path: str
 
 
-class UpdateDocumentRequest(BaseModel):
-    filepath: str
-    content: str
-
-
-class RemoveDocumentRequest(BaseModel):
-    filepath: str
-    delete_file: bool = False
-
-
-class MoveDocumentRequest(BaseModel):
-    source_filepath: str
-    dest_filepath: str
+class MoveRequest(BaseModel):
+    source_path: str
+    dest_path: str

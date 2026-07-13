@@ -1,40 +1,22 @@
-"""Document watcher lifecycle."""
+"""Document watcher lifecycle (stubbed in Phase 1)."""
 
 from __future__ import annotations
 
-from typing import Any
+import logging
 
-from mcp_server.server import DocumentWatcher, get_orchestrator
-from watchdog.observers import Observer
+from server.env_config import is_watcher_disabled
 
-from server.env_config import get_allowed_roots, get_watcher_debounce_seconds, is_watcher_disabled
-
-_observers: list[Observer] = []
+logger = logging.getLogger(__name__)
 
 
 def start_watchers() -> None:
-    """Start DocumentWatcher on the documents directory."""
+    """Phase 2: start debounced filesystem watcher on GRIM_DOCUMENTS_DIR."""
     if is_watcher_disabled():
+        logger.debug("Watcher disabled via GRIM_WATCH_DISABLED")
         return
-
-    debounce_seconds = get_watcher_debounce_seconds()
-    watcher = DocumentWatcher(get_orchestrator, debounce_seconds=debounce_seconds)
-
-    for root in get_allowed_roots():
-        root.mkdir(parents=True, exist_ok=True)
-        observer = Observer()
-        observer.schedule(watcher, str(root), recursive=True)
-        observer.daemon = True
-        observer.start()
-        _observers.append(observer)
+    logger.debug("Watcher not implemented in Phase 1 scaffold")
 
 
 def stop_watchers() -> None:
-    """Stop all active observers."""
-    for observer in _observers:
-        try:
-            observer.stop()
-            observer.join(timeout=5)
-        except Exception:
-            pass
-    _observers.clear()
+    """Phase 2: stop active filesystem watchers."""
+    logger.debug("Watcher stop noop in Phase 1 scaffold")

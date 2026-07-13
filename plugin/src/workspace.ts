@@ -74,7 +74,7 @@ export async function readWorkspaceFile(workingDir: string, workspacePath: strin
   }
 }
 
-const SCRATCH_PREFIX = "scratch/knowledge-rag-proxy";
+const SCRATCH_PREFIX = "scratch/grimoire";
 
 export async function writeScratchFile(
   workingDir: string,

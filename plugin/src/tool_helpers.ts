@@ -7,12 +7,12 @@ import type { PluginConfig } from "./config.js";
 import { getState } from "./state.js";
 import { WorkspacePathError } from "./workspace.js";
 
-export const KRP_SKILL_PATH = "skills/knowledge-rag-proxy/SKILL.md";
+export const GRIM_SKILL_PATH = "skills/grimoire/SKILL.md";
 
-export const KRP_SKILL_REFERENCE = `If unsure which krp_* tool or parameters to use, or calls keep failing, load the knowledge-rag-proxy skill (${KRP_SKILL_PATH}).`;
+export const GRIM_SKILL_REFERENCE = `If unsure which grim_* tool or parameters to use, or calls keep failing, load the grimoire skill (${GRIM_SKILL_PATH}).`;
 
 export function withSkillReference(description: string): string {
-  return `${description} ${KRP_SKILL_REFERENCE}`;
+  return `${description} ${GRIM_SKILL_REFERENCE}`;
 }
 
 export interface ToolErrorPayload {
@@ -33,7 +33,7 @@ export function requireReadyState(): ReadyState | ToolExecutionResult {
   const { config } = getState();
   if (config === null) {
     return errorResult({
-      message: "knowledge-rag-proxy plugin not initialized",
+      message: "grimoire plugin not initialized",
       hint: "Set baseUrl and apiToken in the plugin config.json, then restart the assistant.",
     });
   }
@@ -63,7 +63,7 @@ export function formatApiError(error: unknown): ToolErrorPayload {
   if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) {
     return {
       status: "error",
-      message: "Request to the knowledge-rag-proxy server timed out",
+      message: "Request to the Grimoire server timed out",
       hint: "The server did not respond in time. Check it is running and reachable at baseUrl (host, port, firewall, VPN).",
     };
   }
@@ -72,7 +72,7 @@ export function formatApiError(error: unknown): ToolErrorPayload {
   if (error instanceof TypeError) {
     return {
       status: "error",
-      message: `Cannot reach the knowledge-rag-proxy server: ${error.message}`,
+      message: `Cannot reach the Grimoire server: ${error.message}`,
       hint: "The server is unreachable. Verify it is running and that baseUrl in config.json is correct (scheme, host, port).",
     };
   }
@@ -97,24 +97,21 @@ export function formatApiError(error: unknown): ToolErrorPayload {
 function fallbackHintForStatus(statusCode: number, message: string): string {
   if (statusCode === 401) {
     if (message.includes("Missing Bearer token")) {
-      return "The plugin sent no Bearer token. Set apiToken in the plugin config.json (same value as KRP_BEARER on the server) and restart the assistant.";
+      return "The plugin sent no Bearer token. Set apiToken in the plugin config.json (same value as GRIM_BEARER on the server) and restart the assistant.";
     }
-    return "The plugin's apiToken does not match KRP_BEARER on the server. Fix apiToken in the plugin config.json (or KRP_BEARER in the server .env) so they are identical, then restart the assistant.";
+    return "The plugin's apiToken does not match GRIM_BEARER on the server. Fix apiToken in the plugin config.json (or GRIM_BEARER in the server .env) so they are identical, then restart the assistant.";
   }
   if (statusCode === 403) {
     return "Authenticated but forbidden. Check the server-side access rules for this path.";
   }
   if (statusCode === 404) {
-    return "The document was not found on the server. Call krp_list_documents to see indexed filepaths.";
+    return "The file was not found on the server. Call grim_list_files to see indexed paths.";
   }
   if (statusCode === 422) {
     return "The request body/params failed validation. Check required fields and their types for this tool.";
   }
   if (statusCode === 503) {
-    return "The server is running but not ready: KRP_BEARER is unset or the orchestrator is unavailable. Fix the server .env (KRP_BEARER, KRP_DOCUMENTS_DIR) and restart it. This is a server-side config issue, not a token mismatch.";
-  }
-  if (statusCode === 400 && message.toLowerCase().includes("reindex")) {
-    return "A reindex is already in progress; retry after it finishes.";
+    return "The server is running but not ready: GRIM_BEARER is unset. Fix the server .env (GRIM_BEARER, GRIM_DOCUMENTS_DIR) and restart it.";
   }
   if (statusCode === 400) {
     return "The server rejected the input (e.g. bad path, '..', unsupported format, or destination already exists). Read the message and adjust the arguments.";
