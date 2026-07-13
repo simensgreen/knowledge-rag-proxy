@@ -16,6 +16,11 @@ _APP_NAME = "knowledge-rag-proxy"
 _DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
 _DEFAULT_EMBEDDING_DIMENSIONS = 1024
 
+# knowledge-rag's built-in reranker (ms-marco-MiniLM-L-6-v2) is English-only, which
+# reorders non-Latin results poorly. bge-reranker-v2-m3 is multilingual to match the
+# multilingual embedding default above.
+_DEFAULT_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+
 
 def _truthy(value: str | None) -> bool:
     if value is None:
@@ -154,9 +159,8 @@ def apply_env_config() -> None:
     if reranker_enabled is not None:
         config.reranker_enabled = _truthy(reranker_enabled)
 
-    reranker_model = os.environ.get("KRP_RERANKER_MODEL")
-    if reranker_model:
-        config.reranker_model = reranker_model.strip()
+    reranker_model = os.environ.get("KRP_RERANKER_MODEL", _DEFAULT_RERANKER_MODEL).strip()
+    config.reranker_model = reranker_model
 
     reranker_top_k = _optional_int("KRP_RERANKER_TOP_K_MULTIPLIER")
     if reranker_top_k is not None:

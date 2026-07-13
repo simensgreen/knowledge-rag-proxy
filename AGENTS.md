@@ -185,7 +185,7 @@ Copy [`.env.example`](.env.example) → `.env` (gitignored). No YAML.
 | `KRP_CHUNK_SIZE` | `1000` |
 | `KRP_CHUNK_OVERLAP` | `200` |
 | `KRP_RERANKER_ENABLED` | `true` |
-| `KRP_RERANKER_MODEL` | `Xenova/ms-marco-MiniLM-L-6-v2` |
+| `KRP_RERANKER_MODEL` | `BAAI/bge-reranker-v2-m3` (multilingual; matches the multilingual embedding default). English-only + faster: `Xenova/ms-marco-MiniLM-L-6-v2` |
 | `KRP_RERANKER_TOP_K_MULTIPLIER` | `3` |
 | `KRP_SEARCH_DEFAULT_RESULTS` | `5` |
 | `KRP_SEARCH_MAX_RESULTS` | `20` |
