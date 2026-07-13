@@ -1,4 +1,4 @@
 {
   "baseUrl": "https://kb.example.com",
-  "apiTokenCredentialRef": "knowledge-rag-proxy/api_token"
+  "apiToken": "replace-with-your-KRP_BEARER-token"
 }

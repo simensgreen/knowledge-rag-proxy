@@ -54,4 +54,4 @@ Then configure `baseUrl`, store the API token in the Vellum credential vault, an
 
 ## Status
 
-Phase 1 server: MCP routes + upload/download via `.env` config. Plugin Phase 2 pending. See [AGENTS.md](AGENTS.md) roadmap.
+Phase 1 server + Phase 2 plugin tools (`krp_*`) are implemented. See [AGENTS.md](AGENTS.md) roadmap.

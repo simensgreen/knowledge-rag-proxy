@@ -18,3 +18,8 @@ class UpdateDocumentRequest(BaseModel):
 class RemoveDocumentRequest(BaseModel):
     filepath: str
     delete_file: bool = False
+
+
+class MoveDocumentRequest(BaseModel):
+    source_filepath: str
+    dest_filepath: str

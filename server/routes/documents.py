@@ -12,9 +12,12 @@ from mcp_server.server import KnowledgeOrchestrator
 from server.deps import get_orchestrator_dep
 from server.errors import ServiceError
 from server.responses import error_response
+from server.schemas import MoveDocumentRequest
 from server.services import documents as documents_service
 
 router = APIRouter()
+
+OrchestratorDep = Annotated[KnowledgeOrchestrator, Depends(get_orchestrator_dep)]
 
 
 @router.post("/upload")
@@ -50,3 +53,16 @@ def download(filepath: Annotated[str, Query()]) -> object:
                 service_error.hint,
             )
         raise
+
+
+@router.post("/move_document")
+async def move_document(
+    body: MoveDocumentRequest,
+    orchestrator: OrchestratorDep,
+) -> dict:
+    return await run_in_threadpool(
+        documents_service.move_document,
+        orchestrator,
+        body.source_filepath,
+        body.dest_filepath,
+    )

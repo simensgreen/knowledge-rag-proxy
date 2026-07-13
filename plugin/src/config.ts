@@ -1,8 +1,8 @@
-/** Parsed plugin config from config.json (non-secret fields only). */
+/** Parsed plugin config from config.json. */
 
 export interface PluginConfig {
   baseUrl: string;
-  apiTokenCredentialRef: string;
+  apiToken: string;
 }
 
 export function parsePluginConfig(raw: unknown): PluginConfig {
@@ -19,10 +19,10 @@ export function parsePluginConfig(raw: unknown): PluginConfig {
     throw new Error("knowledge-rag-proxy: config.baseUrl must be http:// or https://");
   }
 
-  const apiTokenCredentialRef = String(record.apiTokenCredentialRef ?? "").trim();
-  if (apiTokenCredentialRef.length === 0) {
-    throw new Error("knowledge-rag-proxy: config.apiTokenCredentialRef is required");
+  const apiToken = String(record.apiToken ?? "").trim();
+  if (apiToken.length === 0) {
+    throw new Error("knowledge-rag-proxy: config.apiToken is required (same value as KRP_BEARER on the server)");
   }
 
-  return { baseUrl, apiTokenCredentialRef };
+  return { baseUrl, apiToken };
 }

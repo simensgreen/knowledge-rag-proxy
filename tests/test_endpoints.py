@@ -361,3 +361,120 @@ def test_download_success(
     response = client.get("/download", params={"filepath": "readme.md"}, headers=auth_headers)
     assert response.status_code == 200
     assert response.content == b"hello file"
+
+
+def test_remove_document_success(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    mock_orchestrator: MockOrchestrator,
+    temp_dirs: dict[str, Path],
+) -> None:
+    target = temp_dirs["documents_dir"] / "docs" / "a.md"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text("content", encoding="utf-8")
+    mock_orchestrator._source_to_docid[str(target.resolve())] = "doc-1"
+
+    response = client.post(
+        "/remove_document",
+        json={"filepath": "docs/a.md", "delete_file": True},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["filepath"] == "docs/a.md"
+    assert not target.exists()
+
+
+def test_remove_document_missing(client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = client.post(
+        "/remove_document",
+        json={"filepath": "missing.md"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "hint" in payload
+
+
+def test_move_document_success(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    mock_orchestrator: MockOrchestrator,
+    temp_dirs: dict[str, Path],
+) -> None:
+    source = temp_dirs["documents_dir"] / "notes" / "draft.md"
+    source.parent.mkdir(parents=True, exist_ok=True)
+    source.write_text("# draft", encoding="utf-8")
+    mock_orchestrator._source_to_docid[str(source.resolve())] = "doc-move"
+    mock_orchestrator.parser._parsers = {".md": lambda _path: ("", {})}
+
+    mock_document = MagicMock()
+    mock_document.content = "parsed"
+    mock_document.source = temp_dirs["documents_dir"] / "archive" / "draft.md"
+    mock_document.filename = "draft.md"
+    mock_document.category = "general"
+    mock_document.format = ".md"
+    mock_document.metadata = {}
+    mock_document.keywords = []
+    mock_document.chunks = [MagicMock()]
+    mock_document.id = "doc-move-new"
+    mock_orchestrator.parser.parse_file.return_value = mock_document
+
+    response = client.post(
+        "/move_document",
+        json={"source_filepath": "notes/draft.md", "dest_filepath": "archive/draft.md"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["status"] == "success"
+    assert payload["source_filepath"] == "notes/draft.md"
+    assert payload["dest_filepath"] == "archive/draft.md"
+    assert not source.exists()
+    assert (temp_dirs["documents_dir"] / "archive" / "draft.md").is_file()
+
+
+def test_move_document_dest_exists(
+    client: TestClient,
+    auth_headers: dict[str, str],
+    temp_dirs: dict[str, Path],
+) -> None:
+    source = temp_dirs["documents_dir"] / "a.md"
+    dest = temp_dirs["documents_dir"] / "b.md"
+    source.write_text("a", encoding="utf-8")
+    dest.write_text("b", encoding="utf-8")
+
+    response = client.post(
+        "/move_document",
+        json={"source_filepath": "a.md", "dest_filepath": "b.md"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "hint" in payload
+    assert source.is_file()
+
+
+def test_move_document_source_missing(client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = client.post(
+        "/move_document",
+        json={"source_filepath": "missing.md", "dest_filepath": "new.md"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 404
+    payload = response.json()
+    assert payload["status"] == "error"
+    assert "hint" in payload
+
+
+def test_move_document_path_escape(client: TestClient, auth_headers: dict[str, str]) -> None:
+    response = client.post(
+        "/move_document",
+        json={"source_filepath": "../etc/passwd", "dest_filepath": "safe.md"},
+        headers=auth_headers,
+    )
+    assert response.status_code == 400
+    assert response.json()["status"] == "error"

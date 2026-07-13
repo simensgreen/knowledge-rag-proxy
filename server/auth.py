@@ -12,11 +12,24 @@ from server.errors import ServiceError
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
-_VELLUM_TOKEN_HINT = (
-    "In Vellum: use credential_store (secure prompt) to ask the user for the API token "
-    "and save it in the credential vault (e.g. alias knowledge-rag-proxy/api_token). "
-    "Set apiTokenCredentialRef in plugin config.json to that alias; CES injects "
-    "Authorization: Bearer on outbound requests. The token must match KRP_BEARER on the server."
+_MISSING_BEARER_HINT = (
+    "Missing Bearer token. To fix: trigger the Vellum secure credential prompt so the user "
+    "can enter the token in a popup (never ask for the token in chat). Use the assistant CLI "
+    "command 'assistant credentials prompt' (resolve its current path yourself; it lives under "
+    "the Vellum app CLI dir and may move between versions) with these flags: "
+    '--service "knowledge-rag-proxy" --field "api_token" '
+    '--allowed-domains "<host from baseUrl, e.g. localhost>" '
+    '--allowed-tools "krp_search_knowledge,krp_list_documents,krp_get_document,krp_download_document,krp_upload_content,krp_upload_workspace,krp_move_document,krp_remove_document" '
+    "--injection-templates "
+    '\'[{"hostPattern":"<same host>","injectionType":"header","headerName":"Authorization","valuePrefix":"Bearer "}]\'. '
+    "Give the prompt a generous timeout so the user has time to respond. "
+    "If the CLI flags differ in this Vellum version, run its --help to adapt them."
+)
+
+_INVALID_BEARER_HINT = (
+    "Invalid Bearer token: the stored value does not match KRP_BEARER on the server. "
+    "Re-run the secure credential prompt with the correct token, "
+    "or update KRP_BEARER in the server .env to match."
 )
 
 
@@ -35,11 +48,11 @@ def verify_bearer_token(
         raise ServiceError(
             401,
             "Missing Bearer token",
-            hint=f"Send Authorization: Bearer <token>. {_VELLUM_TOKEN_HINT}",
+            hint=_MISSING_BEARER_HINT,
         )
     if credentials.credentials != expected:
         raise ServiceError(
             401,
             "Invalid Bearer token",
-            hint=f"The token does not match KRP_BEARER on the server. {_VELLUM_TOKEN_HINT}",
+            hint=_INVALID_BEARER_HINT,
         )

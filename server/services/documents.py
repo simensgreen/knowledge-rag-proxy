@@ -17,7 +17,7 @@ from mcp_server.server import KnowledgeOrchestrator
 
 from server.env_config import get_temp_dir
 from server.errors import ServiceError
-from server.paths import relativize, resolve_allowed_path
+from server.paths import relativize, resolve_allowed_path, to_library_path
 from server.responses import success
 
 # Copy uploads to disk in fixed-size chunks so large files never sit in RAM.
@@ -225,3 +225,66 @@ def build_download_response(filepath: str) -> FileResponse:
         filename=resolved.name,
         media_type=media_type or "application/octet-stream",
     )
+
+
+def move_document(
+    orchestrator: KnowledgeOrchestrator,
+    source_filepath: str,
+    dest_filepath: str,
+) -> dict[str, Any]:
+    if not source_filepath:
+        raise ServiceError(
+            400,
+            "Source filepath required",
+            hint="Provide the root-relative path of the file to move, including the filename.",
+        )
+    if not dest_filepath:
+        raise ServiceError(
+            400,
+            "Destination filepath required",
+            hint="Provide the root-relative destination path, including the filename.",
+        )
+
+    source_path = resolve_allowed_path(source_filepath)
+    dest_path = resolve_allowed_path(dest_filepath)
+
+    if not source_path.is_file():
+        raise ServiceError(
+            404,
+            f"File not found: {source_filepath}",
+            hint="Call GET /list_documents to see available filepaths.",
+        )
+    if dest_path.exists():
+        raise ServiceError(
+            400,
+            f"Destination already exists: {dest_filepath}",
+            hint="Choose another dest_filepath or remove the existing file first with POST /remove_document.",
+        )
+
+    chunks_removed = 0
+    source_key = str(source_path.resolve())
+    if source_key in orchestrator._source_to_docid:
+        remove_result = orchestrator.remove_document_by_path(
+            to_library_path(source_filepath),
+            delete_file=False,
+        )
+        if "error" not in remove_result:
+            chunks_removed = int(remove_result.get("chunks_removed", 0))
+
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    os.replace(source_path, dest_path)
+
+    payload: dict[str, Any] = {
+        "source_filepath": source_filepath,
+        "dest_filepath": dest_filepath,
+        "chunks_removed": chunks_removed,
+    }
+
+    suffix = dest_path.suffix.lower()
+    if suffix in orchestrator.parser._parsers:
+        index_result = index_saved_file(orchestrator, dest_path)
+        payload["chunks_added"] = index_result["chunks_added"]
+        payload["format"] = index_result["format"]
+        payload["category"] = index_result["category"]
+
+    return success(relativize(payload))

@@ -1,33 +1,32 @@
 import type { InitContext } from "@vellumai/plugin-api";
 
-import { checkHealth } from "../src/client.js";
+import { probeServerReachable } from "../src/client.js";
 import { parsePluginConfig } from "../src/config.js";
 import { setState } from "../src/state.js";
 
 export default async function init(ctx: InitContext): Promise<void> {
   const config = parsePluginConfig(ctx.config);
 
-  let serverHealthy = false;
-  try {
-    serverHealthy = await checkHealth(config);
-  } catch (error) {
-    ctx.logger.warn(
-      { err: String(error), baseUrl: config.baseUrl },
-      "knowledge-rag-proxy: health check failed",
-    );
-  }
+  // Config is the only runtime state tools depend on. The probe below is a
+  // best-effort boot diagnostic only; its result is never cached.
+  setState({ config });
 
-  setState({ config, serverHealthy });
+  // Best-effort boot diagnostic; result is never cached. The token from config is
+  // sent, so an unauthenticated /health here means the token is wrong. Bound the
+  // probe so an unreachable server can never stall boot.
+  const probe = await probeServerReachable(config, { signal: AbortSignal.timeout(5000) });
 
-  if (!serverHealthy) {
-    ctx.logger.warn(
-      { baseUrl: config.baseUrl, credentialRef: config.apiTokenCredentialRef },
-      "knowledge-rag-proxy: server unreachable at init; tools will return errors until baseUrl is reachable",
+  if (probe.reachable) {
+    ctx.logger.info(
+      { baseUrl: config.baseUrl, status: probe.status },
+      probe.authenticated
+        ? "knowledge-rag-proxy: initialized; server reachable and token accepted"
+        : "knowledge-rag-proxy: initialized; server reachable but token rejected - fix apiToken in config.json to match KRP_BEARER",
     );
   } else {
-    ctx.logger.info(
-      { baseUrl: config.baseUrl, credentialRef: config.apiTokenCredentialRef },
-      "knowledge-rag-proxy: initialized",
+    ctx.logger.warn(
+      { baseUrl: config.baseUrl, err: probe.error },
+      "knowledge-rag-proxy: initialized; server unreachable at baseUrl - tools will report the exact cause per request",
     );
   }
 }

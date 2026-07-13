@@ -28,39 +28,45 @@ export KRP_BEARER="your-secret-token"
 
 See root `AGENTS.md` for server setup.
 
-### 2. Store the API token in the Vellum credential vault
-
-**Never** put the raw token in `config.json` or chat.
-
-1. Ask your assistant to use `credential_store` (secure prompt) to save the token.
-2. Use alias `knowledge-rag-proxy/api_token` (or another name you reference in config).
-3. Set `allowedDomains` to the host from your `baseUrl` (e.g. `kb.example.com` or `*.example.com`).
-4. Restrict `allowedTools` to: `kb_search`, `kb_list`, `kb_upload`.
-
-The Credential Execution Service injects `Authorization: Bearer` on outbound requests to matching domains. Plugin code does not read plaintext secrets.
-
-Docs: [Security & Permissions](https://www.vellum.ai/docs/developer-guide/security)
-
-### 3. Edit plugin config
+### 2. Edit plugin config
 
 After install, edit `~/.vellum/workspace/plugins/knowledge-rag-proxy/config.json`:
 
 ```json
 {
   "baseUrl": "https://kb.example.com",
-  "apiTokenCredentialRef": "knowledge-rag-proxy/api_token"
+  "apiToken": "your-secret-token"
 }
 ```
 
-`baseUrl` must not have a trailing slash. `apiTokenCredentialRef` is the vault alias only.
+`baseUrl` must not have a trailing slash. `apiToken` is the same value as `KRP_BEARER` on the server; the plugin sends it as `Authorization: Bearer` on every request.
+
+> **Why not the Vellum credential vault?** The vault (CES) only injects credentials into the `bash` tool and built-in integrations — never into a plugin's in-process `fetch`. So the plugin must hold the token itself. It stays inside the plugin process and is never returned to the LLM (the model only sees tool results). Keep `config.json` out of git and readable only by your user (it is your own machine, single-user, and the server is typically on `localhost`).
+
+Docs: [Security & Permissions](https://www.vellum.ai/docs/developer-guide/security)
 
 ## Tools
 
 | Tool | Risk | Description |
 |------|------|-------------|
-| `kb_search` | low | Hybrid search over indexed documents |
-| `kb_list` | low | List documents in the index |
-| `kb_upload` | medium | Upload a file from the conversation workspace for indexing |
+| `krp_search_knowledge` | low | Hybrid search over indexed documents |
+| `krp_list_documents` | low | List documents with filters and pagination (`limit` default 50) |
+| `krp_get_document` | low | Fetch full parsed content by root-relative filepath |
+| `krp_upload_workspace` | medium | Upload a file already in the Vellum workspace |
+| `krp_upload_content` | medium | Upload generated text content with a filename |
+| `krp_download_document` | low | Download to workspace scratch; returns metadata + `workspace_path` |
+| `krp_remove_document` | high | Remove from index and disk (default `delete_file: true`) |
+| `krp_move_document` | medium | Move or rename a file within the documents root |
+
+### File flows
+
+- **Upload from workspace:** `krp_upload_workspace` with `workspace_path` (chat attachment, scratch, or path from `file_read`). Do not paste file bytes.
+- **Upload generated text:** `krp_upload_content` with `content` + `filename`.
+- **Download:** `krp_download_document` writes to `scratch/knowledge-rag-proxy/downloads/...` and returns `workspace_path` only. Use built-in `file_read` to read the file.
+
+### Errors
+
+Failed tool calls return JSON `{ status: "error", message, hint }` with actionable hints from the server or client validation.
 
 ## Upgrade
 

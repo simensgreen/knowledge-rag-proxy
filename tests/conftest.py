@@ -97,10 +97,17 @@ class MockOrchestrator:
         return {"old_chunks_removed": 1, "new_chunks_added": 2, "filepath": filepath}
 
     def remove_document_by_path(self, filepath: str, delete_file: bool = False) -> dict[str, Any]:
-        del delete_file
         if Path(filepath).name == "missing.md":
             return {"error": f"Document not found in index: {filepath}"}
-        return {"chunks_removed": 1, "filepath": filepath, "file_deleted": False}
+        resolved = str(Path(filepath).resolve())
+        chunks_removed = 0
+        doc_id = self._source_to_docid.pop(resolved, None)
+        if doc_id is not None:
+            self._indexed_docs.pop(doc_id, None)
+            chunks_removed = 1
+        if delete_file and Path(filepath).exists():
+            Path(filepath).unlink()
+        return {"chunks_removed": chunks_removed, "filepath": filepath, "file_deleted": delete_file}
 
     def search_similar(self, filepath: str, max_results: int = 5) -> list[dict[str, Any]]:
         del filepath, max_results

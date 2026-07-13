@@ -12,6 +12,10 @@ from platformdirs import user_data_dir
 
 _APP_NAME = "knowledge-rag-proxy"
 
+# Proxy defaults override knowledge-rag's built-in bge-small-en-v1.5 (English-only).
+_DEFAULT_EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
+_DEFAULT_EMBEDDING_DIMENSIONS = 1024
+
 
 def _truthy(value: str | None) -> bool:
     if value is None:
@@ -130,13 +134,13 @@ def apply_env_config() -> None:
     config.chroma_dir = config.data_dir / "chroma_db"
     config.models_cache_dir = _path_or_default("KRP_MODELS_CACHE_DIR", app_data / "models_cache")
 
-    embedding_model = os.environ.get("KRP_EMBEDDING_MODEL")
-    if embedding_model:
-        config.embedding_model = embedding_model.strip()
+    embedding_model = os.environ.get("KRP_EMBEDDING_MODEL", _DEFAULT_EMBEDDING_MODEL).strip()
+    config.embedding_model = embedding_model
 
     embedding_dimensions = _optional_int("KRP_EMBEDDING_DIMENSIONS")
-    if embedding_dimensions is not None:
-        config.embedding_dim = embedding_dimensions
+    config.embedding_dim = (
+        embedding_dimensions if embedding_dimensions is not None else _DEFAULT_EMBEDDING_DIMENSIONS
+    )
 
     chunk_size = _optional_int("KRP_CHUNK_SIZE")
     if chunk_size is not None:

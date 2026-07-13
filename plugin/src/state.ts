@@ -2,12 +2,10 @@ import type { PluginConfig } from "./config.js";
 
 export interface PluginRuntimeState {
   config: PluginConfig | null;
-  serverHealthy: boolean;
 }
 
 let runtimeState: PluginRuntimeState = {
   config: null,
-  serverHealthy: false,
 };
 
 export function getState(): PluginRuntimeState {

@@ -17,7 +17,7 @@ from server import env_config
 from server.errors import ServiceError
 
 # Response keys whose string values are filesystem paths to relativize.
-_PATH_KEYS = frozenset({"source", "filepath", "top_result"})
+_PATH_KEYS = frozenset({"source", "filepath", "top_result", "source_filepath", "dest_filepath"})
 
 
 def documents_root() -> Path:

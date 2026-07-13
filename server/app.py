@@ -20,6 +20,12 @@ from server.env_config import apply_env_config, bootstrap_library_base  # noqa: 
 bootstrap_library_base()
 apply_env_config()
 
+# knowledge-rag's BM25 tokenizer is ASCII-only; patch it to index/query Cyrillic
+# and other non-Latin scripts before the orchestrator builds the keyword index.
+from server.patches import apply_unicode_tokenizer_patch  # noqa: E402
+
+apply_unicode_tokenizer_patch()
+
 from fastapi import Depends, FastAPI, Request  # noqa: E402
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 
