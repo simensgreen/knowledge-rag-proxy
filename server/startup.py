@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
 from mcp_server.server import KnowledgeOrchestrator
+
+logger = logging.getLogger(__name__)
 
 _MACOS_TCC_HINT = (
     "On macOS this is usually a privacy restriction (TCC): grant the process "
@@ -41,24 +44,23 @@ def _probe_readable(path: Path, label: str) -> None:
 
 
 def index_documents_on_startup(orchestrator: KnowledgeOrchestrator) -> None:
-    """Index documents_dir before serving requests or starting the watcher."""
+    """Kick off incremental indexing in the background so the server serves immediately.
+
+    The readability probe stays synchronous: it is a fast scandir that surfaces a
+    real access problem (e.g. macOS TCC) at boot rather than letting the server
+    come up and silently index zero files. The indexing itself runs in a daemon
+    thread (via the library's background reindex), so requests are served right
+    away; clients monitor progress with GET /get_reindex_status.
+    """
     from mcp_server.config import config
 
     _probe_readable(config.documents_dir, "Documents directory (KRP_DOCUMENTS_DIR)")
 
-    print("[STARTUP] Beginning incremental document indexing...")
-    stats = orchestrator.index_all(force=False)
-    errors = stats.get("errors", 0)
-    print(
-        "[STARTUP] Indexing complete: "
-        f"{stats.get('indexed', 0)} new, "
-        f"{stats.get('updated', 0)} updated, "
-        f"{stats.get('deleted', 0)} deleted, "
-        f"{stats.get('skipped', 0)} skipped, "
-        f"{errors} errors"
+    logger.debug("Starting incremental document indexing in background")
+    result = orchestrator.start_reindex_background("incremental")
+    if result.get("status") == "already_running":
+        logger.info("Startup index skipped: indexing already running")
+        return
+    logger.info(
+        "Server ready; background indexing in progress (monitor via GET /get_reindex_status)"
     )
-    if errors:
-        print(
-            f"[STARTUP] WARNING: {errors} file(s) failed to index; "
-            "check permissions on the documents directory and its contents."
-        )

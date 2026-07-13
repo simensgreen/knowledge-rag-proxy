@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import traceback
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
+
+# uvicorn configures only its own loggers, leaving app-module loggers on the
+# root logger with no handler (INFO swallowed). Install a root handler so
+# server.* log lines are visible. KRP_LOG_LEVEL overrides the default INFO.
+logging.basicConfig(
+    level=os.environ.get("KRP_LOG_LEVEL", "INFO").upper(),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 # knowledge-rag creates {KNOWLEDGE_RAG_DIR}/{documents,data,models_cache} as a
 # side effect of importing mcp_server.config, so KNOWLEDGE_RAG_DIR must be steered
