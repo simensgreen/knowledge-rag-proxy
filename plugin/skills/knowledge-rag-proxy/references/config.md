@@ -11,14 +11,7 @@ Edit installed `config.json` (not committed). Required: `baseUrl`, `apiToken` (s
 }
 ```
 
-## Optional keys
-
-| Key | Default | Purpose |
-|-----|---------|---------|
-| `autoIndexAttachments` | `true` | Auto-upload supported non-image chat attachments |
-| `injectAttachmentDocument` | `true` | Inject parsed text into the turn (upload still runs when `false`) |
-| `attachmentFiledir` | `vellum` | Base server subdir; files land in `<attachmentFiledir>/<conversationId>/<filename>` |
-| `attachmentMaxInjectChars` | `20000` | Max parsed chars injected; overflow written to `scratch/knowledge-rag-proxy/injected/<conversationId>/...` |
+Only `baseUrl` and `apiToken` are read. No other keys.
 
 ## Upload indexing behavior (server)
 

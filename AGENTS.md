@@ -57,7 +57,6 @@ Monorepo: self-hosted REST proxy over `knowledge-rag` + Vellum marketplace plugi
 | `server/backup.py` | Optional remote backup (Phase 3) |
 | `plugin/` | Vellum plugin root (marketplace `source.path`) |
 | `plugin/hooks/init.ts` | Config validation + health check |
-| `plugin/hooks/user-prompt-submit.ts` | Auto-upload supported chat attachments; inject parsed text |
 | `plugin/tools/*.ts` | `krp_search_knowledge`, `krp_list_documents`, `krp_get_document`, `krp_upload_workspace`, `krp_upload_content`, `krp_download_document`, `krp_remove_document`, `krp_move_document` |
 | `plugin/src/workspace.ts` | Workspace path sandbox + scratch writes |
 | `plugin/src/tool_helpers.ts` | Shared tool boilerplate + error hints |
@@ -203,9 +202,8 @@ Copy [`.env.example`](.env.example) → `.env` (gitignored). No YAML.
 
 1. `KRP_DOCUMENTS_DIR` → startup `index_all()` → vector store; watcher re-indexes on changes
 2. Vellum upload → `krp_upload_workspace` / `krp_upload_content` → `POST /upload` (save-only by default; watcher indexes)
-3. Chat attachment → `user-prompt-submit` hook → `POST /upload return=true` (parse for LLM) + watcher indexes
-4. User query → `krp_search_knowledge` → `GET /search_knowledge?query=...`
-5. Download → `krp_download_document` → `GET /download` → scratch path in workspace
+3. User query → `krp_search_knowledge` → `GET /search_knowledge?query=...`
+4. Download → `krp_download_document` → `GET /download` → scratch path in workspace
 
 ## Commands
 
@@ -280,8 +278,7 @@ See [Server config (`.env` only)](#server-config-env-only) for model/search/adva
 - All API paths are root-relative — knowledge-rag returns absolute paths, so every service function routes them through `server/paths.py` (`to_library_path` inbound, `relativize` outbound). Add a new path-returning field to `_PATH_KEYS` in `server/paths.py` or it leaks the absolute path
 - Startup `index_all()` in `server/startup.py` probes `KRP_DOCUMENTS_DIR` with `os.scandir` and raises `RuntimeError` if unreadable. `os.walk` in knowledge-rag's `parse_directory` silently ignores access errors, so a macOS TCC-protected folder (`~/Documents`, `~/Desktop`, `~/Downloads`) would otherwise index zero files and report success. Since the proxy never auto-creates `KRP_DOCUMENTS_DIR`, a failing probe reflects a real access problem. Grant Full Disk Access or move the folder out of protected locations.
 - Plugin health at init is best-effort; unreachable server logs warning, tools return structured errors with hints at call time
-- Plugin `user-prompt-submit` hook auto-uploads supported non-image chat attachments (`autoIndexAttachments` in config, default on); when `injectAttachmentDocument` is true (default), streams file bytes and calls `/upload return=true` for parsed text injection, else save-only; falls back to save-only on timeout; when injected text exceeds `attachmentMaxInjectChars`, full text is written to `scratch/knowledge-rag-proxy/injected/<conversationId>/...` and the injection cites that workspace path for `file_read`
-- Plugin config optional keys: `autoIndexAttachments` (default `true`), `injectAttachmentDocument` (default `true`), `attachmentFiledir` (default `vellum`; attachments upload to `<attachmentFiledir>/<conversationId>/<filename>`), `attachmentMaxInjectChars` (default `20000`)
+- Plugin config keys are only `baseUrl` + `apiToken` (no others). Chat attachments are indexed on demand via `krp_upload_workspace` (attachment basename as `workspace_path`); there is no automatic upload hook
 - Plugin tool errors return JSON `{status, message, hint}` — server hints are passed through; client adds hints for init/health/workspace validation
 - Download tool writes to `scratch/knowledge-rag-proxy/downloads/`; tool result is metadata only (use `file_read` for content)
 - `scripts/run-server.sh` sources `.env` for launchd

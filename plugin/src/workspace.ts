@@ -76,14 +76,6 @@ export async function readWorkspaceFile(workingDir: string, workspacePath: strin
 
 const SCRATCH_PREFIX = "scratch/knowledge-rag-proxy";
 
-export async function writeScratchText(
-  workingDir: string,
-  relativePath: string,
-  text: string,
-): Promise<string> {
-  return writeScratchFile(workingDir, relativePath, new TextEncoder().encode(text));
-}
-
 export async function writeScratchFile(
   workingDir: string,
   relativePath: string,

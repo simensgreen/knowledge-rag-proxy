@@ -77,11 +77,9 @@ Full parameters and risk levels: [references/tools.md](references/tools.md).
 1. Call `krp_upload_content` with `content` and `filename` (supported extension, e.g. `notes.md`).
 2. Same `return_document` semantics as workspace upload.
 
-**Chat attachments (automatic):**
+**Chat attachments:**
 
-The `user-prompt-submit` hook uploads supported non-image attachments to `vellum/<conversationId>/<filename>` when `autoIndexAttachments` is true. When `injectAttachmentDocument` is true (default), parsed text is injected into the turn; if truncated, full text is written under `scratch/knowledge-rag-proxy/injected/<conversationId>/...` with the path cited for `file_read`.
-
-Prefer the hook for user-attached files; call upload tools only when the model must index something else explicitly.
+When the user attaches a file, index it explicitly with `krp_upload_workspace` using the attachment's basename as `workspace_path`. There is no automatic upload.
 
 **Proactive upload (agent initiative):**
 
